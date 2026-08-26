@@ -3,7 +3,14 @@
 Este documento descreve as diretrizes arquiteturais, regras de infraestrutura e decisões de negócio adotadas neste projeto. **Qualquer IA ou desenvolvedor atuando neste repositório deve ler e seguir estas regras antes de propor novas funcionalidades.**
 
 ## 1. Visão Geral do Sistema
-*(Preencha aqui o contexto do seu sistema. Ex: Este é um sistema de gestão X. O domínio principal gira em torno de módulos de Vendas, Usuários e Estoque.)*
+
+O **dcriar-order-integration-api** é um microsserviço backend desenvolvido para atuar como o núcleo de integração e processamento de dados externos (como pedidos de e-commerce e marketplaces) do ecossistema **DCriar**.
+
+## 1.1. Arquitetura de Componentes
+O ecossistema roda de forma conteinerizada via Docker Compose, dividido nos seguintes serviços interconectados:
+- **API Spring Boot:** Responsável por expor os endpoints REST, aplicar as regras de negócio e gerenciar a persistência utilizando Hibernate/JPA.
+- **Banco de Dados:** PostgreSQL isolado, com versionamento de schema totalmente automatizado através do **Flyway**.
+- **Motor de Automação (`n8n`):** Utilizado para capturar webhooks externos, tratar payloads e orquestrar as chamadas de integração.
 
 ## 2. Topologia e Infraestrutura (Docker e Compose)
 O projeto adota uma estrutura flexível de containers para desenvolvimento e produção, baseada na combinação de arquivos Compose:
