@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+GUARDRAIL="$ROOT_DIR/.github/hooks/guardrails.sh"
+
+mapfile -t JAVA_FILES < <(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.java$' || true)
+
+if [[ ${#JAVA_FILES[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+for file in "${JAVA_FILES[@]}"; do
+  TARGET_FILE_PATH="$file" bash "$GUARDRAIL" < <(git show ":$file")
+done

@@ -1,0 +1,41 @@
+name: Guardrails
+on:
+  pull_request:
+    paths:
+      - '**/*.java'
+      - '.github/hooks/guardrails.sh'
+      - '.githooks/pre-commit'
+  push:
+    paths:
+      - '**/*.java'
+      - '.github/hooks/guardrails.sh'
+      - '.githooks/pre-commit'
+
+jobs:
+  guardrails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run guardrails on changed Java files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE_SHA="${{ github.event.pull_request.base.sha || github.event.before }}"
+          HEAD_SHA="${{ github.sha }}"
+
+          if [[ -z "${BASE_SHA}" ]]; then
+            BASE_SHA="$(git rev-parse HEAD~1)"
+          fi
+
+          mapfile -t FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '*.java' || true)
+
+          for file in "${FILES[@]}"; do
+            if [[ -f "$file" ]]; then
+              TARGET_FILE_PATH="$file" bash .github/hooks/guardrails.sh < "$file"
+            fi
+          done
