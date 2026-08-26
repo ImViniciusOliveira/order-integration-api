@@ -32,6 +32,9 @@ services:
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - GENERIC_TIMEZONE=America/Sao_Paulo
       - TZ=America/Sao_Paulo
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - TRUST_PROXY=true
+      - N8N_PROXY_HOPS=1
     volumes:
       - n8n_order_data:/home/node/.n8n
     networks:
