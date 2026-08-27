@@ -19,6 +19,21 @@ services:
       timeout: 5s
       retries: 5
 
+  mongodb-order:
+    image: mongo:latest
+    container_name: order-integration-mongodb
+    restart: no
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_order_data:/data/db
+    networks:
+      - order-integration-network
+
   n8n-order:
     image: n8nio/n8n:latest
     container_name: order-integration-n8n
@@ -35,6 +50,7 @@ services:
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - TRUST_PROXY=true
       - N8N_PROXY_HOPS=1
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
     volumes:
       - n8n_order_data:/home/node/.n8n
     networks:
@@ -78,6 +94,7 @@ services:
 volumes:
   order_db_data:
   n8n_order_data:
+  mongodb_order_data:
 
 networks:
   order-integration-network:
