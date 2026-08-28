@@ -18,6 +18,12 @@ import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
+/**
+ * Entidade de auditoria e persistência de eventos brutos (Event Store imutável).
+ * <p>
+ * Armazena os payloads brutos recebidos dos webhooks das plataformas (Shopee, TikTok, etc.)
+ * em formato JSONB, garantindo rastreabilidade total de todas as notificações recebidas.
+ */
 @Entity
 @Table(name = "marketplace_raw_events")
 @Getter
@@ -51,6 +57,17 @@ public class MarketplaceRawEvent {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    /**
+     * Método fábrica que cria uma instância de evento bruto aplicando validações
+     * de integridade antes da persistência no banco de dados.
+     *
+     * @param platform    código da plataforma de origem (ex: SHOPEE, TIKTOK)
+     * @param shopId      identificador único da loja no marketplace
+     * @param orderSn     código único do pedido (pode ser nulo para eventos a nível de loja)
+     * @param eventType   tipo ou código do evento recebido
+     * @param payloadJson mapa com o payload JSON bruto completo
+     * @return nova instância validada de {@link MarketplaceRawEvent}
+     */
     public static MarketplaceRawEvent criarEvento(String platform, String shopId, String orderSn, String eventType, Map<String, Object> payloadJson) {
         if (platform == null || platform.isBlank()) {
             throw new IllegalArgumentException("A plataforma do evento não pode ser nula ou vazia.");

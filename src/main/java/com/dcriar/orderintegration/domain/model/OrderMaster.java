@@ -19,6 +19,16 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.util.Map;
 
+/**
+ * Entidade de domínio principal que representa o ciclo de vida mestre de um pedido
+ * proveniente de qualquer marketplace integrado (Shopee, TikTok Shop, etc.).
+ * <p>
+ * Segue o modelo híbrido de persistência:
+ * <ul>
+ *   <li>Colunas relacionais indexadas para campos core e financeiros (status, loja, fretes, repasse líquido).</li>
+ *   <li>Coluna JSONB {@code metadata} para absorver itens, SKUs, variações e dados heterogêneos de diferentes plataformas.</li>
+ * </ul>
+ */
 @Entity
 @Table(
     name = "orders_master",
@@ -69,6 +79,13 @@ public class OrderMaster extends AuditableEntity {
     @Column(name = "metadata", columnDefinition = "jsonb")
     private Map<String, Object> metadata;
 
+    /**
+     * Provisiona a estimativa inicial do pedido durante a fase de despacho (ex: Code 3 / READY_TO_SHIP).
+     *
+     * @param status               status atual do pedido
+     * @param estimatedShippingFee taxa de frete estimada fornecida pelo marketplace
+     * @param metadata             detalhes dinâmicos de itens, SKUs e dados do pedido
+     */
     public void provisionarEstimativa(String status, BigDecimal estimatedShippingFee, Map<String, Object> metadata) {
         if (status == null || status.isBlank()) {
             throw new IllegalArgumentException("O status do pedido não pode ser nulo ou vazio.");
@@ -82,6 +99,11 @@ public class OrderMaster extends AuditableEntity {
         }
     }
 
+    /**
+     * Atualiza e vincula o código de rastreio logístico recebido da transportadora/marketplace.
+     *
+     * @param trackingNo código de rastreamento oficial
+     */
     public void atualizarRastreio(String trackingNo) {
         if (trackingNo == null || trackingNo.isBlank()) {
             throw new IllegalArgumentException("O código de rastreio não pode ser nulo ou vazio.");
@@ -89,6 +111,13 @@ public class OrderMaster extends AuditableEntity {
         this.trackingNo = trackingNo;
     }
 
+    /**
+     * Realiza a conciliação financeira definitiva pós-venda (Escrow / Settlement),
+     * aplicando o repasse líquido real e marcando o pedido como conciliado.
+     *
+     * @param escrowAmount             valor líquido definitivo liberado para o vendedor
+     * @param shippingFeeBorneBySeller custo real de frete cobrado do vendedor após a entrega
+     */
     public void conciliarEscrow(BigDecimal escrowAmount, BigDecimal shippingFeeBorneBySeller) {
         if (escrowAmount == null || escrowAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("O valor de escrow conciliado não pode ser nulo ou negativo.");
@@ -98,6 +127,11 @@ public class OrderMaster extends AuditableEntity {
         this.reconciled = true;
     }
 
+    /**
+     * Atualiza o status do ciclo de vida do pedido.
+     *
+     * @param status novo status válido do pedido
+     */
     public void atualizarStatus(String status) {
         if (status == null || status.isBlank()) {
             throw new IllegalArgumentException("O status do pedido não pode ser nulo ou vazio.");

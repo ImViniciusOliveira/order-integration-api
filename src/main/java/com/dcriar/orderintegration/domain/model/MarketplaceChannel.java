@@ -13,6 +13,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Entidade de domínio que representa os canais de marketplace suportados pela aplicação
+ * (ex: SHOPEE, TIKTOK, MERCADO_LIVRE, AMAZON).
+ * <p>
+ * Permite o cadastro e gerenciamento dinâmico de novas plataformas sem necessidade
+ * de alteração de código ou migrations adicionais.
+ */
 @Entity
 @Table(name = "marketplace_channels")
 @Getter
