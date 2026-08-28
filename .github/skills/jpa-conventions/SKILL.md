@@ -1,6 +1,6 @@
 ---
 name: jpa-conventions
-description: Regras para banco de dados, JPA, PostgreSQL, Rich Domain Model, Timezone, Flyway e infraestrutura. Use esta skill ao criar Entidades (Models), Repositories, Queries ou migrações.
+description: Regras para banco de dados, JPA, PostgreSQL, Rich Domain Model, Timezone, Paginação, Flyway e infraestrutura. Use esta skill ao criar Entidades (Models), Repositories, Queries ou migrações.
 ---
 
 # Padrões de Persistência e Banco de Dados
@@ -16,9 +16,10 @@ description: Regras para banco de dados, JPA, PostgreSQL, Rich Domain Model, Tim
 - Todas as Entidades de negócio devem estender `AuditableEntity` com suporte a `TIMESTAMPTZ` no banco e `OffsetDateTime` no Java para rastreabilidade com controle estrito de fuso horário.
 - Mapeamento JSON/JSONB no PostgreSQL deve utilizar a anotação `@JdbcTypeCode(SqlTypes.JSON)` do Hibernate.
 
-## 3. Consultas e Filtros (Specifications)
+## 3. Consultas, Filtros e Paginação (Specifications)
 - É PROIBIDO o uso de *query methods* gigantescos no Repositório ou `@Query` com SQL nativo/JPQL para filtros dinâmicos.
-- Buscas dinâmicas devem ser implementadas utilizando o padrão **Spring Data JPA Specifications**, organizadas em pacotes de especificações por domínio (`domain.specification`).
+- Buscas dinâmicas devem ser implementadas utilizando o padrão **Spring Data JPA Specifications** com `JpaSpecificationExecutor`, organizadas em pacotes de especificações por domínio (`domain.specification`).
+- **Paginação Obrigatória:** Todas as consultas de listagem com Specifications devem receber `Pageable` e retornar `Page<T>`, garantindo consultas com `LIMIT` e `OFFSET` no banco.
 - Para buscas textuais dinâmicas, utilize `PostgresSearchUtils` para normalização com `unaccent` e case-insensitive.
 
 ## 4. Validação de Unicidade

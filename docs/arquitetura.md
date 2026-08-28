@@ -14,7 +14,7 @@ O **dcriar-order-integration-api** é o microsserviço central do ecossistema **
    * **Fase 1 (Despacho / READY_TO_SHIP):** Grava o pedido com o provisionamento inicial de status e a **taxa de frete estimada** (`estimated_shipping_fee`).
    * **Fase 2 (Pós-Entrega / COMPLETED / Escrow Settlement):** Gerencia a fila de conciliação com delay via **Redis** para buscar o extrato definitivo na API de *Escrow/Settlement*, atualizando o valor líquido real repassado (`escrow_amount`), o custo de frete real cobrado do vendedor (`shipping_fee_borne_by_seller`) e marcando o pedido como conciliado (`reconciled = true`).
 3. **Mapeamento Agnóstico & Anti-Refatoração:** Converte estruturas de dados heterogêneas dos múltiplos marketplaces para o modelo unificado de domínio através de MapStruct e armazenamento híbrido com JSONB.
-4. **Filtros e Relatórios Operacionais:** Fornece consultas dinâmicas de alta performance para monitoramento de pedidos por canal, loja, status de conciliação e períodos.
+4. **Filtros, Consultas e Paginação de Alta Performance:** Fornece endpoints com suporte nativo a paginação (`Pageable`, `PagedModel`/HATEOAS) e filtros dinâmicos via Specifications para monitoramento de pedidos por canal, loja, status de conciliação e períodos.
 
 ---
 
@@ -46,7 +46,10 @@ O projeto adota uma estrutura flexível de containers para desenvolvimento e pro
 * **Injeção de Dependências:** Proibido `@Autowired`. Injeção exclusivamente por construtor utilizando `private final` e anotação `@RequiredArgsConstructor` do Lombok.
 * **Auditoria Centralizada:** Todas as novas tabelas de negócio devem obrigatoriamente estender a classe `AuditableEntity` para garantir rastreabilidade automática com `OffsetDateTime`.
 * **Fuso Horário (Timezone):** Banco com `TIMESTAMPTZ`, Java com `OffsetDateTime` e `ApplicationTimeZoneConfig` travado em `America/Sao_Paulo`.
-* **Consultas e Filtros Dinâmicos (Specifications):** É proibido o uso de *query methods* longos ou `@Query` manuais nos Repositories. Toda busca com múltiplos filtros dinâmicos DEVE ser implementada utilizando **Spring Data JPA Specifications** (na pasta `domain/specification`).
+* **Consultas, Filtros Dinâmicos e Paginação Obrigatória:** 
+  * É proibido o uso de *query methods* longos ou `@Query` manuais nos Repositories.
+  * Toda busca com múltiplos filtros dinâmicos DEVE ser implementada utilizando **Spring Data JPA Specifications** (na pasta `domain/specification`).
+  * Toda listagem de dados na API DEVE ser obrigatoriamente paginada (`Pageable`, `Page<T>`, `PagedModel`), evitando carregar coleções inteiras na memória e garantindo tempo de resposta constante.
 * **Busca Textual Avançada:** Ao implementar *Specifications* para buscas de texto, deve-se obrigatoriamente utilizar a classe utilitária `PostgresSearchUtils` do projeto para lidar com normalizações e acentuação no banco via `unaccent`.
 * **Mapeamento de Objetos:** Uso estrito de **MapStruct**. Proibido `BeanUtils.copyProperties`.
 
@@ -54,7 +57,7 @@ O projeto adota uma estrutura flexível de containers para desenvolvimento e pro
 
 ## 4. Normalização de Entrada de Dados (Trim Automático)
 * **O Problema:** Usuários e integrações costumam enviar espaços em branco acidentais no início ou no fim de textos em formulários e JSONs (ex: `"  Produto X   "`). Tratar isso manualmente em cada regra de negócio suja o código.
-* **A Solução (Jackson Global):** A aplicação possui o `TrimStringDeserializer` registrado globalmente no Jackson 3.
+* **A Solu\u00e7\u00e3o (Jackson Global):** A aplicação possui o `TrimStringDeserializer` registrado globalmente no Jackson 3.
 * **Regra para a IA:** A IA **não deve** criar códigos manuais de limpeza de texto (como `string.trim()`) nos Services ou Controllers. O framework de serialização já faz isso de forma transparente na entrada.
 
 ---

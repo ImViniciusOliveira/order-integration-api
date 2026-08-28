@@ -1,13 +1,14 @@
 ---
 name: api-conventions
-description: Regras para criacao de APIs REST, HATEOAS, Controllers, DTOs (records), Mapeamento (MapStruct), validacao de entrada e tratamento de excecoes. Use esta skill sempre que trabalhar na camada web.
+description: Regras para criacao de APIs REST, HATEOAS, Controllers, DTOs (records), Mapeamento (MapStruct), validacao de entrada, paginacao e tratamento de excecoes. Use esta skill sempre que trabalhar na camada web.
 ---
 
 # Padrões de API e REST (Spring Boot)
 
-## 1. Padrão REST e Versionamento
+## 1. Padrão REST, Paginação e Versionamento
 - Todas as APIs devem adotar maturidade Richardson Nível 3 (HATEOAS).
 - Controllers NUNCA retornam entidades JPA puras. Retorne sempre `ResponseEntity<Model>` mapeados via classes `*ModelAssembler` baseadas em `RepresentationModelAssemblerSupport`.
+- **Paginação Obrigatória:** Todas as consultas e listagens de coleções na API DEVEM ser paginadas recebendo `Pageable` (com `@PageableDefault`) e retornando modelos paginados (`PagedModel<T>` ou `Page<T>`). É proibido retornar listas soltas (`List<T>`) sem paginação em endpoints de consulta.
 - As rotas devem ser explícitas com status HTTP corretos (ex: `@ResponseStatus(HttpStatus.CREATED)` para POST).
 - Utilize EXCLUSIVAMENTE a estratégia nativa de versionamento de API do Spring (por Header ou Media Type), sem inserir versões (como `/v1/`) manualmente no prefixo das URLs.
 
