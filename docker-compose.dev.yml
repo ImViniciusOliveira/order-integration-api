@@ -98,6 +98,8 @@ services:
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
       - SPRING_FLYWAY_ENABLED=true
+      - ESCROW_REDIS_QUEUE_KEY=${ESCROW_REDIS_QUEUE_KEY}
+      - ESCROW_DELAY_MINUTES=${ESCROW_DELAY_MINUTES}
     networks:
       - order-integration-network
     depends_on:
