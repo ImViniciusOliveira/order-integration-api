@@ -1,12 +1,12 @@
 package com.dcriar.orderintegration.service;
 
+import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.model.MarketplaceChannel;
 import com.dcriar.orderintegration.domain.model.OrderMaster;
 import com.dcriar.orderintegration.domain.repository.MarketplaceChannelRepository;
 import com.dcriar.orderintegration.domain.repository.MarketplaceRawEventRepository;
 import com.dcriar.orderintegration.domain.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.service.processor.ShopeeOrderProcessor;
-import com.dcriar.orderintegration.service.processor.TikTokOrderProcessor;
 import com.dcriar.orderintegration.service.queue.EscrowDelayQueueService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,13 +48,18 @@ class MarketplaceIngestionServiceTest {
     @BeforeEach
     void setUp() {
         ShopeeOrderProcessor shopeeProcessor = new ShopeeOrderProcessor();
-        TikTokOrderProcessor tikTokProcessor = new TikTokOrderProcessor();
+        OrderIntegrationProperties properties = new OrderIntegrationProperties(
+                new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
+                new OrderIntegrationProperties.EscrowProperties(120)
+        );
+
         ingestionService = new MarketplaceIngestionService(
                 channelRepository,
                 rawEventRepository,
                 orderMasterRepository,
                 delayQueueService,
-                List.of(shopeeProcessor, tikTokProcessor)
+                properties,
+                List.of(shopeeProcessor)
         );
     }
 
@@ -127,17 +132,17 @@ class MarketplaceIngestionServiceTest {
         // Verificação estrita da ordem de execução: Banco PRIMEIRO, Redis DEPOIS
         InOrder inOrder = inOrder(orderMasterRepository, delayQueueService);
         inOrder.verify(orderMasterRepository).save(any(OrderMaster.class));
-        inOrder.verify(delayQueueService).scheduleReconciliation(eq("SHOPEE"), eq("240828ABC123"), any(Duration.class));
+        inOrder.verify(delayQueueService).scheduleReconciliation(eq("SHOPEE"), eq("240828ABC123"), eq(Duration.ofMinutes(120)));
     }
 
     @Test
     @DisplayName("Deve rejeitar ingestão quando canal não estiver ativo no banco")
     void shouldRejectIngestionWhenChannelIsInactive() {
-        when(channelRepository.findByCodeAndActiveTrue("AMAZON")).thenReturn(Optional.empty());
+        when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.empty());
 
-        Map<String, Object> payload = Map.of("order_id", "AMZ-001");
+        Map<String, Object> payload = Map.of("ordersn", "240828ABC123");
 
-        assertThatThrownBy(() -> ingestionService.ingestEvent("AMAZON", "shop_1", payload))
+        assertThatThrownBy(() -> ingestionService.ingestEvent("SHOPEE", "shop_1", payload))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("não está ativo");
 

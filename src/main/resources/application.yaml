@@ -5,3 +5,9 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE}
   jpa:
     open-in-view: false
+
+order-integration:
+  redis:
+    escrow-queue-key: ${ESCROW_REDIS_QUEUE_KEY:dcriar:orders:escrow_delay_queue}
+  escrow:
+    delay-minutes: ${ESCROW_DELAY_MINUTES:120}

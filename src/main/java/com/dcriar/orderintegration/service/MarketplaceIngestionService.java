@@ -1,5 +1,6 @@
 package com.dcriar.orderintegration.service;
 
+import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.model.MarketplaceChannel;
 import com.dcriar.orderintegration.domain.model.MarketplaceRawEvent;
 import com.dcriar.orderintegration.domain.model.OrderMaster;
@@ -35,18 +36,17 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MarketplaceIngestionService {
 
-    public static final Duration DEFAULT_ESCROW_DELAY = Duration.ofHours(2);
-
     private final MarketplaceChannelRepository channelRepository;
     private final MarketplaceRawEventRepository rawEventRepository;
     private final OrderMasterRepository orderMasterRepository;
     private final EscrowDelayQueueService delayQueueService;
+    private final OrderIntegrationProperties properties;
     private final List<MarketplaceOrderProcessor> processors;
 
     /**
      * Processa a chegada de um evento bruto de marketplace recebido via webhook ou n8n.
      *
-     * @param platform código da plataforma de origem (ex: "SHOPEE", "TIKTOK")
+     * @param platform código da plataforma de origem (ex: "SHOPEE")
      * @param shopId   identificador opcional da loja
      * @param payload  estrutura JSON completa do evento recebido
      * @return a entidade {@link OrderMaster} persistida e atualizada
@@ -120,9 +120,17 @@ public class MarketplaceIngestionService {
 
         // 8. ORDEM OBRIGATÓRIA - PASSO 2: Agendar no Redis apenas APÓS sucesso no banco se status for COMPLETED
         if ("COMPLETED".equalsIgnoreCase(savedOrder.getStatus()) && !savedOrder.isReconciled()) {
-            delayQueueService.scheduleReconciliation(savedOrder.getPlatform(), savedOrder.getOrderSn(), DEFAULT_ESCROW_DELAY);
+            Duration delay = resolveEscrowDelay();
+            delayQueueService.scheduleReconciliation(savedOrder.getPlatform(), savedOrder.getOrderSn(), delay);
         }
 
         return savedOrder;
+    }
+
+    private Duration resolveEscrowDelay() {
+        if (properties != null && properties.escrow() != null && properties.escrow().delayMinutes() > 0) {
+            return Duration.ofMinutes(properties.escrow().delayMinutes());
+        }
+        return Duration.ofHours(2);
     }
 }

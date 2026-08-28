@@ -1,5 +1,6 @@
 package com.dcriar.orderintegration.service.queue;
 
+import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,15 +19,14 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class EscrowDelayQueueService {
 
-    public static final String ESCROW_DELAY_QUEUE_KEY = "dcriar:orders:escrow_delay_queue";
-
     private final StringRedisTemplate redisTemplate;
+    private final OrderIntegrationProperties properties;
 
     /**
      * Agenda a conciliação de um pedido adicionando-o ao ZSet do Redis com pontuação (score)
      * correspondente ao timestamp Unix em milissegundos em que o delay expira.
      *
-     * @param platform código do marketplace (ex: "SHOPEE", "TIKTOK")
+     * @param platform código do marketplace (ex: "SHOPEE")
      * @param orderSn  número único do pedido
      * @param delay    tempo de espera antes da conciliação (ex: Duration.ofHours(2))
      */
@@ -38,10 +38,11 @@ public class EscrowDelayQueueService {
 
         long executionTimestamp = System.currentTimeMillis() + delay.toMillis();
         String member = buildQueueMember(platform, orderSn);
+        String queueKey = getQueueKey();
 
-        redisTemplate.opsForZSet().add(ESCROW_DELAY_QUEUE_KEY, member, executionTimestamp);
-        log.info("Pedido {} ({}) agendado na fila do Redis para conciliação de Escrow em {} minutos (timestamp: {})",
-                orderSn, platform, delay.toMinutes(), executionTimestamp);
+        redisTemplate.opsForZSet().add(queueKey, member, executionTimestamp);
+        log.info("Pedido {} ({}) agendado na fila do Redis '{}' para conciliação de Escrow em {} minutos (timestamp: {})",
+                orderSn, platform, queueKey, delay.toMinutes(), executionTimestamp);
     }
 
     /**
@@ -52,7 +53,8 @@ public class EscrowDelayQueueService {
      */
     public Set<String> pollReadyOrders(int limit) {
         long now = System.currentTimeMillis();
-        Set<String> readyMembers = redisTemplate.opsForZSet().rangeByScore(ESCROW_DELAY_QUEUE_KEY, 0, now, 0, limit);
+        String queueKey = getQueueKey();
+        Set<String> readyMembers = redisTemplate.opsForZSet().rangeByScore(queueKey, 0, now, 0, limit);
 
         if (readyMembers == null || readyMembers.isEmpty()) {
             return Collections.emptySet();
@@ -69,7 +71,19 @@ public class EscrowDelayQueueService {
      */
     public void remove(String platform, String orderSn) {
         String member = buildQueueMember(platform, orderSn);
-        redisTemplate.opsForZSet().remove(ESCROW_DELAY_QUEUE_KEY, member);
+        redisTemplate.opsForZSet().remove(getQueueKey(), member);
+    }
+
+    /**
+     * Retorna a chave configurada da fila de atraso no Redis.
+     *
+     * @return nome da chave no Redis
+     */
+    public String getQueueKey() {
+        if (properties != null && properties.redis() != null && properties.redis().escrowQueueKey() != null) {
+            return properties.redis().escrowQueueKey();
+        }
+        return "dcriar:orders:escrow_delay_queue";
     }
 
     /**
