@@ -4,6 +4,10 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 
+/**
+ * Utilitário para construção de expressões Criteria do PostgreSQL utilizando
+ * a função nativa {@code unaccent} e normalização para caixa baixa (case-insensitive).
+ */
 public final class PostgresSearchUtils {
 
     private PostgresSearchUtils() {

@@ -9,6 +9,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.OffsetDateTime;
 
+/**
+ * Superclasse abstrata mapeada que fornece auditoria automatizada de data de criação
+ * e data de última atualização com controle estrito de fuso horário (TIMESTAMPTZ).
+ */
 @Getter
 @Setter
 @MappedSuperclass

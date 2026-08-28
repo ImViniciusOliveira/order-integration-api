@@ -5,6 +5,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.module.SimpleModule;
 
+/**
+ * Configuração global do framework Jackson 3 para registrar customizadores
+ * e módulos transversais de serialização e desserialização JSON.
+ */
 @Configuration
 public class JacksonConfig {
 

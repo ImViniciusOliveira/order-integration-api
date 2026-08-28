@@ -7,6 +7,10 @@ import org.springframework.stereotype.Component;
 import java.text.Normalizer;
 import java.util.Locale;
 
+/**
+ * Utilitário para verificação de duplicidade e normalização de campos textuais
+ * ignorando acentuação e diferenças de maiúsculas/minúsculas.
+ */
 @Component
 @RequiredArgsConstructor
 public class PostgresNormalizedUniquenessChecker {

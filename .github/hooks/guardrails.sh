@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Hook de seguranca arquitetural (Pre-Tool Use)
 
-# Lê o payload bruto da ferramenta/patch/arquivo.
+# Le o payload bruto da ferramenta/patch/arquivo.
 INPUT="$(cat)"
 
 if [[ -n "${TARGET_FILE_PATH:-}" ]]; then
@@ -42,7 +42,7 @@ else
         '
     }
 
-    # Se vier do editor com tool_name, só analisa ferramentas de edição/criação.
+    # Se vier do editor com tool_name, so analisa ferramentas de edicao/criacao.
     TOOL_NAME="$(extract_json_value tool_name)"
     if [[ -n "$TOOL_NAME" ]]; then
         case "$TOOL_NAME" in
@@ -54,7 +54,7 @@ else
     CONTENT="$(extract_json_value content)"
     FILE_PATH="$(extract_json_value path)"
 
-    # Suporte a patch/diff bruto quando não vier JSON com path/content.
+    # Suporte a patch/diff bruto quando nao vier JSON com path/content.
     if [[ -z "$FILE_PATH" ]]; then
         FILE_PATH="$(extract_json_value filePath)"
     fi
@@ -66,7 +66,7 @@ else
     fi
 fi
 
-# Apenas valida código Java
+# Apenas valida codigo Java
 if [[ "$FILE_PATH" != *.java ]]; then
     exit 0
 fi
@@ -86,11 +86,11 @@ if [[ "$FILE_PATH" == *src/main/java/* ]] && echo "$CONTENT" | grep -q "\.trim()
 fi
 
 if echo "$CONTENT" | grep -q "@Data" || echo "$CONTENT" | grep -q "@Value"; then
-    ERRORS+="[Lombok] Proibido @Data/@Value. Use @Getter, @Setter, etc. "
+    ERRORS+="[Lombok] Proibido @Data/@Value. Use @Getter, @Setter, @Builder, etc. "
 fi
 
 if echo "$CONTENT" | grep -qE "@Autowired"; then
-    ERRORS+="[Injecao] Proibido @Autowired. Use construtor com private final. "
+    ERRORS+="[Injecao] Proibido @Autowired. Use construtor com private final e @RequiredArgsConstructor. "
 fi
 
 if [[ "$FILE_PATH" == *Controller.java ]] && echo "$CONTENT" | grep -qE "Repository"; then
@@ -105,8 +105,15 @@ if [[ "$FILE_PATH" == *domain/*.java ]] && echo "$CONTENT" | grep -q "\.api\."; 
     ERRORS+="[Isolamento] Proibido Domain importar pacote API. "
 fi
 
+# Validacao de JavaDoc na declaracao da classe/interface/record
+if [[ "$FILE_PATH" == *src/main/java/* ]] && echo "$CONTENT" | grep -qE "(public|abstract|final)?[[:space:]]*(class|interface|record)[[:space:]]+[A-Z]"; then
+    if ! echo "$CONTENT" | grep -q "/\*\*"; then
+        ERRORS+="[JavaDoc] Obrigatorio adicionar JavaDoc descritivo no topo de classes, interfaces e records. "
+    fi
+fi
+
 if [[ -n "$ERRORS" ]]; then
-    # O exit status e o stderr avisam o Agente de que a ação foi bloqueada
+    # O exit status e o stderr avisam o Agente de que a acao foi bloqueada
     echo "VIOLACAO ARQUITETURAL: $ERRORS" >&2
     exit 1
 fi
