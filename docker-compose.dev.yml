@@ -34,6 +34,17 @@ services:
     networks:
       - order-integration-network
 
+  redis-order:
+    image: redis:alpine
+    container_name: order-integration-redis
+    restart: no
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_order_data:/data
+    networks:
+      - order-integration-network
+
   n8n-order:
     image: n8nio/n8n:latest
     container_name: order-integration-n8n
@@ -83,6 +94,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-order-db:5432/${POSTGRES_DB}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_DATA_REDIS_HOST=redis-order
+      - SPRING_DATA_REDIS_PORT=6379
       - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
       - SPRING_FLYWAY_ENABLED=true
     networks:
@@ -90,11 +103,14 @@ services:
     depends_on:
       postgres-order-db:
         condition: service_healthy
+      redis-order:
+        condition: service_started
 
 volumes:
   order_db_data:
   n8n_order_data:
   mongodb_order_data:
+  redis_order_data:
 
 networks:
   order-integration-network:
