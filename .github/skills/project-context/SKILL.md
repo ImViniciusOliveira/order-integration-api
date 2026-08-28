@@ -3,23 +3,30 @@ name: project-context
 description: Use esta skill no início de qualquer nova tarefa ou quando precisar entender as regras de negócio, a infraestrutura ou o estado atual do projeto.
 ---
 
-# Contexto do Projeto
+# Contexto do Projeto e Decisões de Domínio
 
-## 1. Leitura obrigatória antes de qualquer tarefa
-
-Antes de sugerir arquiteturas complexas, criar módulos inteiros ou iniciar qualquer nova tarefa, leia obrigatoriamente:
-
+## 1. Leitura Obrigatória
+Antes de propor funcionalidades ou criar novos módulos, leia obrigatoriamente:
 1. esta skill (`.github/skills/project-context/SKILL.md`)
 2. o arquivo `docs/arquitetura.md`
 
-Esses dois arquivos são a referência principal do projeto. Eles definem o roadmap, a infraestrutura (Docker) e as decisões de negócio exclusivas deste sistema.
-
-## 2. Visão do Hub Multiplataforma (dcriar-order-integration-api)
-- Microsserviço central do ecossistema DCriar para integração de pedidos de múltiplos marketplaces (Shopee, TikTok Shop, Mercado Livre, Amazon).
+## 2. Visão do Hub de Integração de Pedidos
+- Centralizador e orquestrador de pedidos de marketplaces (Shopee e novos canais).
 - **Persistência Híbrida (Relacional + JSONB):** Colunas relacionais para core financeiro e filtros (`platform`, `shop_id`, `order_sn`, `status`, `reconciled`, `escrow_amount`) + coluna curinga `metadata JSONB` com índice GIN para absorver dados heterogêneos.
 - **Precisão Financeira `DECIMAL(15,4)`:** Valores monetários de frete, repasse e taxas usam `DECIMAL(15,4)` no PostgreSQL e `BigDecimal` no Java.
-- **Canais Dinâmicos no Banco:** Plataformas são cadastradas na tabela `marketplace_channels` (não usar Enums fixos).
-- **Event Store Imutável:** Webhooks gravados imediatamente em `marketplace_raw_events` antes do processamento.
-- **Ciclo de Vida em 2 Fases:** 
+- **Canais Dinâmicos no Banco:** Plataformas são cadastradas na tabela `marketplace_channels` (sem amarras a Enums fixos).
+- **Event Store Imutável:** Webhooks gravados imediatamente em `marketplace_raw_events` antes de qualquer processamento.
+- **Ciclo de Vida em 2 Fases:**
   * Fase 1: Despacho com frete estimado (`estimated_shipping_fee`).
   * Fase 2: Pós-entrega com conciliação real de Escrow via fila com delay no Redis.
+
+## 3. Ordem de Execução Obrigatória (PostgreSQL Primeiro, Redis Depois)
+Ao processar um pedido com status `COMPLETED`:
+1. **Passo 1 (PostgreSQL):** Salvar e confirmar primeiro o estado do pedido no banco relacional (`orders_master`).
+2. **Passo 2 (Redis):** Somente após o sucesso no banco, enfileirar o pedido no Sorted Set do Redis com score de timestamp Unix correspondente ao delay configurado (ex: 120 minutos).
+
+## 4. Fila de Conciliação Redis (Delay Queue ZSet)
+- Chave e delay são configuráveis via variáveis de ambiente (`ESCROW_REDIS_QUEUE_KEY`, `ESCROW_DELAY_MINUTES`).
+- Mapeados via `@ConfigurationProperties` em `OrderIntegrationProperties`.
+- O score armazena o timestamp de liberação em milissegundos.
+- O membro do ZSet segue o formato `"PLATFORM:ORDER_SN"`.
