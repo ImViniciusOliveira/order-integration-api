@@ -6,6 +6,9 @@ import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.service.MarketplaceIngestionService;
 import com.dcriar.orderintegration.exception.custom.BusinessException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.hateoas.EntityModel;
@@ -17,6 +20,7 @@ import java.util.Map;
 /**
  * Controlador REST para recepção, validação de autenticação interna e ingestão segura de webhooks de marketplaces.
  */
+@Tag(name = "Webhooks", description = "Ingestão resiliente e autenticada de eventos e webhooks de marketplaces")
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/webhooks")
@@ -36,10 +40,14 @@ public class MarketplaceWebhookController {
      * @param payload  corpo JSON estruturado do webhook
      * @return representação HATEOAS do pedido ingerido e atualizado
      */
+    @Operation(summary = "Ingerir e processar webhook de eventos de pedidos de marketplaces")
     @PostMapping("/{platform}")
     public ResponseEntity<EntityModel<OrderMasterResponse>> ingestWebhook(
+            @Parameter(description = "Identificador da plataforma de marketplace", example = "SHOPEE")
             @PathVariable String platform,
+            @Parameter(description = "Chave de autenticação interna da API", example = "dcr_sec_live_9f83a7c2e1g6B3Ld8e6a1f3ck7bGETe4")
             @RequestHeader(value = "X-Internal-API-Key", required = false) String apiKey,
+            @Parameter(description = "Identificador opcional da loja no marketplace", example = "12345678")
             @RequestHeader(value = "X-Shop-Id", required = false) String shopId,
             @RequestBody Map<String, Object> payload) {
 

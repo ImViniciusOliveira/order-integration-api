@@ -7,7 +7,11 @@ import com.dcriar.orderintegration.api.mapper.OrderMasterMapper;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.model.OrderFilterCriteria;
 import com.dcriar.orderintegration.domain.order.service.OrderMasterService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedResourcesAssembler;
@@ -19,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Controlador REST para consulta paginada, filtros dinâmicos e detalhes de pedidos mestre integrados.
  */
+@Tag(name = "Orders Master", description = "Consulta paginada, detalhamento consolidado e filtros dinâmicos de pedidos")
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
@@ -36,10 +41,11 @@ public class OrderMasterController {
      * @param pageable parâmetros de paginação e ordenação
      * @return modelo HATEOAS paginado contendo os pedidos filtrados
      */
+    @Operation(summary = "Pesquisar pedidos com paginação e múltiplos filtros dinâmicos")
     @GetMapping
     public ResponseEntity<PagedModel<EntityModel<OrderMasterResponse>>> searchOrders(
-            @ModelAttribute OrderFilterRequest filter,
-            Pageable pageable) {
+            @ParameterObject @ModelAttribute OrderFilterRequest filter,
+            @ParameterObject Pageable pageable) {
         OrderFilterCriteria criteria = orderMasterMapper.toCriteria(filter);
         Page<OrderMaster> ordersPage = orderMasterService.searchOrders(criteria, pageable);
         PagedModel<EntityModel<OrderMasterResponse>> pagedModel = pagedResourcesAssembler.toModel(ordersPage, orderMasterModelAssembler);
@@ -52,8 +58,11 @@ public class OrderMasterController {
      * @param id identificador único do pedido
      * @return representação HATEOAS do pedido consultado
      */
+    @Operation(summary = "Buscar pedido consolidado por ID")
     @GetMapping("/{id}")
-    public ResponseEntity<EntityModel<OrderMasterResponse>> findById(@PathVariable Long id) {
+    public ResponseEntity<EntityModel<OrderMasterResponse>> findById(
+            @Parameter(description = "Identificador único do pedido", example = "1")
+            @PathVariable Long id) {
         OrderMaster order = orderMasterService.findById(id);
         return ResponseEntity.ok(orderMasterModelAssembler.toModel(order));
     }

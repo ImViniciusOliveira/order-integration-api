@@ -3,6 +3,8 @@ package com.dcriar.orderintegration.api.controller.root;
 import com.dcriar.orderintegration.api.controller.channel.MarketplaceChannelController;
 import com.dcriar.orderintegration.api.controller.order.MarketplaceWebhookController;
 import com.dcriar.orderintegration.api.controller.order.OrderMasterController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.hateoas.RepresentationModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +17,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 /**
  * Ponto de entrada raiz da API (Root Entry Point) para descoberta dinâmica de endpoints e recursos HATEOAS.
  */
+@Tag(name = "Discovery", description = "Descoberta de hipermídia e ponto de entrada raiz da API")
 @RestController
 @RequestMapping("/api/v1")
 public class RootEntryPointController {
@@ -24,6 +27,7 @@ public class RootEntryPointController {
      *
      * @return modelo HATEOAS contendo os links de navegação da raiz
      */
+    @Operation(summary = "Ponto de entrada raiz para navegação HATEOAS")
     @GetMapping
     public ResponseEntity<RepresentationModel<?>> root() {
         RepresentationModel<?> model = new RepresentationModel<>();
