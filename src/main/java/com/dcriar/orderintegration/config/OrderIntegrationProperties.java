@@ -27,12 +27,20 @@ public record OrderIntegrationProperties(
     }
 
     /**
-     * Configurações de tempo e regras de conciliação de Escrow.
+     * Configurações de tempo, lotes e regras de conciliação de Escrow.
      *
-     * @param delayMinutes tempo em minutos de espera após o status COMPLETED antes de consultar a API de Escrow
+     * @param delayMinutes      tempo em minutos de espera inicial após o status COMPLETED antes de consultar a API de Escrow
+     * @param retryDelayMinutes tempo em minutos de espera adicional para nova tentativa caso o extrato não esteja liberado
+     * @param workerIntervalMs  intervalo em milissegundos entre as execuções do worker de conciliação
+     * @param batchSize         quantidade máxima de pedidos resgatados da fila por execução
+     * @param maxRetries        número máximo de reagendamentos permitidos antes de descarte/alerta
      */
     public record EscrowProperties(
-            @DefaultValue("120") int delayMinutes
+            @DefaultValue("120") int delayMinutes,
+            @DefaultValue("30") int retryDelayMinutes,
+            @DefaultValue("60000") long workerIntervalMs,
+            @DefaultValue("50") int batchSize,
+            @DefaultValue("5") int maxRetries
     ) {
     }
 }

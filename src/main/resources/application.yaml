@@ -11,3 +11,7 @@ order-integration:
     escrow-queue-key: ${ESCROW_REDIS_QUEUE_KEY:dcriar:orders:escrow_delay_queue}
   escrow:
     delay-minutes: ${ESCROW_DELAY_MINUTES:120}
+    retry-delay-minutes: ${ESCROW_RETRY_DELAY_MINUTES:30}
+    worker-interval-ms: ${ESCROW_WORKER_INTERVAL_MS:60000}
+    batch-size: ${ESCROW_BATCH_SIZE:50}
+    max-retries: ${ESCROW_MAX_RETRIES:5}
