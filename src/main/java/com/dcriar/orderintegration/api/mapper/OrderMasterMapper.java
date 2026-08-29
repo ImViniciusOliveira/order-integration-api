@@ -1,13 +1,16 @@
 package com.dcriar.orderintegration.api.mapper;
 
+import com.dcriar.orderintegration.api.dto.filter.OrderFilterRequest;
 import com.dcriar.orderintegration.api.dto.response.OrderMasterResponse;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
+import com.dcriar.orderintegration.domain.order.model.OrderFilterCriteria;
 import org.mapstruct.Mapper;
 
 import java.util.List;
 
 /**
- * Mapper MapStruct responsável pela conversão entre a entidade de domínio OrderMaster e o DTO OrderMasterResponse.
+ * Mapper MapStruct responsável pela conversão entre a entidade de domínio OrderMaster,
+ * DTOs de resposta e mapeamento de critérios de filtro.
  */
 @Mapper(
         componentModel = "spring",
@@ -30,4 +33,12 @@ public interface OrderMasterMapper {
      * @return lista de DTOs de resposta
      */
     List<OrderMasterResponse> toResponseList(List<OrderMaster> entities);
+
+    /**
+     * Converte o DTO de filtro de requisição HTTP para o modelo de critérios de busca do domínio.
+     *
+     * @param request DTO de filtro recebido na rota REST
+     * @return critérios tipados para o mecanismo de JPA Specifications
+     */
+    OrderFilterCriteria toCriteria(OrderFilterRequest request);
 }

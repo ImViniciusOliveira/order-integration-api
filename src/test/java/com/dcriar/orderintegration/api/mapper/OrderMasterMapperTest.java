@@ -1,12 +1,15 @@
 package com.dcriar.orderintegration.api.mapper;
 
+import com.dcriar.orderintegration.api.dto.filter.OrderFilterRequest;
 import com.dcriar.orderintegration.api.dto.response.OrderMasterResponse;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
+import com.dcriar.orderintegration.domain.order.model.OrderFilterCriteria;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -69,5 +72,29 @@ class OrderMasterMapperTest {
         assertThat(responses).hasSize(2);
         assertThat(responses.get(0).orderSn()).isEqualTo("SN1");
         assertThat(responses.get(1).orderSn()).isEqualTo("SN2");
+    }
+
+    @Test
+    @DisplayName("Deve converter OrderFilterRequest para OrderFilterCriteria")
+    void deveConverterFilterRequestParaCriteria() {
+        // Arrange
+        OffsetDateTime now = OffsetDateTime.now();
+        OrderFilterRequest request = new OrderFilterRequest(
+                "SHOPEE", "12345", "COMPLETED", true, "SN123", "TRK123", now.minusDays(1), now
+        );
+
+        // Act
+        OrderFilterCriteria criteria = mapper.toCriteria(request);
+
+        // Assert
+        assertThat(criteria).isNotNull();
+        assertThat(criteria.platform()).isEqualTo("SHOPEE");
+        assertThat(criteria.shopId()).isEqualTo("12345");
+        assertThat(criteria.status()).isEqualTo("COMPLETED");
+        assertThat(criteria.reconciled()).isTrue();
+        assertThat(criteria.orderSn()).isEqualTo("SN123");
+        assertThat(criteria.trackingNo()).isEqualTo("TRK123");
+        assertThat(criteria.startDate()).isEqualTo(now.minusDays(1));
+        assertThat(criteria.endDate()).isEqualTo(now);
     }
 }
