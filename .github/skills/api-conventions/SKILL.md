@@ -1,6 +1,6 @@
 ---
 name: api-conventions
-description: Regras para endpoints REST, DTO records, MapStruct, HATEOAS, RFC 7807 ProblemDetail, validações e serialização. Use esta skill ao criar ou alterar Controllers, DTOs, Mappers e Handlers de erro.
+description: Regras para endpoints REST, DTO records, MapStruct, HATEOAS, RFC 7807 ProblemDetail, validações, OpenAPI/Swagger e CORS. Use esta skill ao criar ou alterar Controllers, DTOs, Mappers, Swagger e Handlers de erro.
 ---
 
 # Padrões de API REST, DTOs, Mappers, HATEOAS & Error Handling
@@ -20,9 +20,10 @@ A camada de API reside sob o pacote `api`:
 - Toda resposta de erro HTTP (400, 404, 422, 500) deve utilizar o padrão **RFC 7807 (`org.springframework.http.ProblemDetail`)** fornecido nativamente pelo Spring Boot.
 - Implemente um `@RestControllerAdvice` estendendo `ResponseEntityExceptionHandler` e personalize os retornos via `problemDetail.setProperty(...)`.
 
-## 3. DTO Records & MapStruct
+## 3. DTO Records, JavaDoc e MapStruct
 - Entidades JPA nunca são expostas diretamente nos controllers.
 - Use `record` do Java para todos os DTOs de Request, Response e Filter (100% puros e sem lógica de negócio).
+- **Preservação de JavaDocs nos DTOs:** Ao enriquecer DTOs com anotações `@Schema` do Swagger/OpenAPI, mantenha 100% dos JavaDocs pré-existentes.
 - Use **MapStruct** para conversão entre DTOs, Critérios e Entidades, configurado obrigatoriamente com `disableBuilder = true`:
   ```java
   @Mapper(
@@ -67,6 +68,16 @@ public ResponseEntity<PagedModel<EntityModel<OrderMasterResponse>>> searchOrders
 ```
 * O Spring lerá automaticamente a requisição atual (`HttpServletRequest`) e anexará os links `self`, `next`, `prev`, `first` e `last`, preservando todos os parâmetros de busca aplicados.
 
-## 5. Normalização Global de Strings (Trim)
-- O Jackson 3 possui o deserializer global `TrimStringDeserializer` ativo.
+## 5. Documentação OpenAPI 3.1 & Swagger UI
+- A documentação de contratos é configurada centralizadamente em `config/OpenApiConfig.java`.
+- Os controladores são enriquecidos com anotações `@Tag`, `@Operation`, `@ApiResponses`, `@Parameter` e `@ParameterObject` (para `Pageable`).
+- Esquema de segurança estático com `SecurityScheme` do tipo `APIKEY` no header `X-Internal-API-Key`.
+
+## 6. Configuração Global de CORS Dinâmico
+- O CORS é implementado em `config/WebCorsConfig.java` injetando `OrderIntegrationProperties`.
+- As origens autorizadas são lidas exclusivamente da propriedade `order-integration.cors.allowed-origins` vinculada à variável `CORS_ALLOWED_ORIGINS`.
+- Configurado com `allowCredentials(true)` e expondo os headers de segurança necessários (`X-Internal-API-Key`, `X-Shop-Id`).
+
+## 7. Normalização Global de Strings (Trim)
+- O Jackson possui o deserializer global `TrimStringDeserializer` ativo.
 - Não faça trim manual em controllers ou services.

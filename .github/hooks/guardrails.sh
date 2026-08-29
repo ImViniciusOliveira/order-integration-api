@@ -66,61 +66,66 @@ else
     fi
 fi
 
-# Apenas valida codigo Java
-if [[ "$FILE_PATH" != *.java ]]; then
-    exit 0
-fi
-
 ERRORS=""
 
-if echo "$CONTENT" | grep -q "BeanUtils.copyProperties"; then
-    ERRORS+="[Mapeamento] Proibido BeanUtils.copyProperties. Use MapStruct. "
+# Validacao em application.yaml (Proibicao de Fallbacks Silenciosos)
+if [[ "$FILE_PATH" == *src/main/resources/application.yaml* || "$FILE_PATH" == *src/main/resources/application.yml* ]]; then
+    if echo "$CONTENT" | grep -qE '\$\{[A-Z0-9_]+:[^}]+\}'; then
+        ERRORS+="[Configuracao] Proibido usar fallbacks silenciosos no application.yaml (\${VAR:default}). Mapeie diretamente como \${VAR} e declare os valores reais no .env. "
+    fi
 fi
 
-if echo "$CONTENT" | grep -q "System.out.println" || echo "$CONTENT" | grep -q "System.err.println"; then
-    ERRORS+="[Logs] Proibido System.out.println. Use @Slf4j. "
-fi
+# Validacao de arquivos Java
+if [[ "$FILE_PATH" == *.java ]]; then
+    if echo "$CONTENT" | grep -q "BeanUtils.copyProperties"; then
+        ERRORS+="[Mapeamento] Proibido BeanUtils.copyProperties. Use MapStruct. "
+    fi
 
-if [[ "$FILE_PATH" == *src/main/java/* ]] && echo "$CONTENT" | grep -q "\.trim()"; then
-    ERRORS+="[Normalizacao] Proibido trim manual. Use o deserializer global do Jackson. "
-fi
+    if echo "$CONTENT" | grep -q "System.out.println" || echo "$CONTENT" | grep -q "System.err.println"; then
+        ERRORS+="[Logs] Proibido System.out.println. Use @Slf4j. "
+    fi
 
-if echo "$CONTENT" | grep -q "@Data" || echo "$CONTENT" | grep -q "@Value"; then
-    ERRORS+="[Lombok] Proibido @Data/@Value. Use @Getter, @Setter, @Builder, etc. "
-fi
+    if [[ "$FILE_PATH" == *src/main/java/* ]] && echo "$CONTENT" | grep -q "\.trim()"; then
+        ERRORS+="[Normalizacao] Proibido trim manual. Use o deserializer global do Jackson. "
+    fi
 
-if echo "$CONTENT" | grep -qE "@Autowired"; then
-    ERRORS+="[Injecao] Proibido @Autowired. Use construtor com private final e @RequiredArgsConstructor. "
-fi
+    if echo "$CONTENT" | grep -q "@Data" || echo "$CONTENT" | grep -q "@Value"; then
+        ERRORS+="[Lombok] Proibido @Data/@Value. Use @Getter, @Setter, @Builder, etc. "
+    fi
 
-if [[ "$FILE_PATH" == *Controller.java ]] && echo "$CONTENT" | grep -qE "Repository"; then
-    ERRORS+="[Fluxo] Proibido Controller acessar Repository. Chame o Service. "
-fi
+    if echo "$CONTENT" | grep -qE "@Autowired"; then
+        ERRORS+="[Injecao] Proibido @Autowired. Use construtor com private final e @RequiredArgsConstructor. "
+    fi
 
-if [[ "$FILE_PATH" == *Repository.java || "$FILE_PATH" == *repository/* ]] && echo "$CONTENT" | grep -q "@Query"; then
-    ERRORS+="[Consultas] Proibido @Query em Repositories. Use Specifications. "
-fi
+    if [[ "$FILE_PATH" == *Controller.java ]] && echo "$CONTENT" | grep -qE "Repository"; then
+        ERRORS+="[Fluxo] Proibido Controller acessar Repository. Chame o Service. "
+    fi
 
-if [[ "$FILE_PATH" == *domain/*.java ]] && echo "$CONTENT" | grep -q "\.api\."; then
-    ERRORS+="[Isolamento] Proibido Domain importar pacote API. "
-fi
+    if [[ "$FILE_PATH" == *Repository.java || "$FILE_PATH" == *repository/* ]] && echo "$CONTENT" | grep -q "@Query"; then
+        ERRORS+="[Consultas] Proibido @Query em Repositories. Use Specifications. "
+    fi
 
-if [[ "$FILE_PATH" == *api/dto/* ]] && echo "$CONTENT" | grep -qE "(@Entity|@Table|toEntity\()"; then
-    ERRORS+="[DTOs] Proibido anotações JPA ou métodos toEntity em DTOs. DTOs devem ser anêmicos e convertidos via MapStruct. "
-fi
+    if [[ "$FILE_PATH" == *domain/*.java ]] && echo "$CONTENT" | grep -q "\.api\."; then
+        ERRORS+="[Isolamento] Proibido Domain importar pacote API. "
+    fi
 
-if [[ "$FILE_PATH" == *api/mapper/*Mapper.java ]] && echo "$CONTENT" | grep -q "@Mapper" && ! echo "$CONTENT" | grep -q "disableBuilder = true"; then
-    ERRORS+="[MapStruct] Obrigatorio configurar disableBuilder = true no @Mapper para compatibilidade com Lombok. "
-fi
+    if [[ "$FILE_PATH" == *api/dto/* ]] && echo "$CONTENT" | grep -qE "(@Entity|@Table|toEntity\()"; then
+        ERRORS+="[DTOs] Proibido anotações JPA ou métodos toEntity em DTOs. DTOs devem ser anêmicos e convertidos via MapStruct. "
+    fi
 
-if [[ "$FILE_PATH" == *service/impl/*ServiceImpl.java ]] && ! echo "$CONTENT" | grep -q "@Transactional"; then
-    ERRORS+="[Transacional] Obrigatorio declarar @Transactional(readOnly = true) no topo de classes ServiceImpl. "
-fi
+    if [[ "$FILE_PATH" == *api/mapper/*Mapper.java ]] && echo "$CONTENT" | grep -q "@Mapper" && ! echo "$CONTENT" | grep -q "disableBuilder = true"; then
+        ERRORS+="[MapStruct] Obrigatorio configurar disableBuilder = true no @Mapper para compatibilidade com Lombok. "
+    fi
 
-# Validacao de JavaDoc na declaracao da classe/interface/record
-if [[ "$FILE_PATH" == *src/main/java/* ]] && echo "$CONTENT" | grep -qE "(public|abstract|final)?[[:space:]]*(class|interface|record)[[:space:]]+[A-Z]"; then
-    if ! echo "$CONTENT" | grep -q "/\*\*"; then
-        ERRORS+="[JavaDoc] Obrigatorio adicionar JavaDoc descritivo no topo de classes, interfaces e records. "
+    if [[ "$FILE_PATH" == *service/impl/*ServiceImpl.java ]] && ! echo "$CONTENT" | grep -q "@Transactional"; then
+        ERRORS+="[Transacional] Obrigatorio declarar @Transactional(readOnly = true) no topo de classes ServiceImpl. "
+    fi
+
+    # Validacao de JavaDoc na declaracao da classe/interface/record
+    if [[ "$FILE_PATH" == *src/main/java/* ]] && echo "$CONTENT" | grep -qE "(public|abstract|final)?[[:space:]]*(class|interface|record)[[:space:]]+[A-Z]"; then
+        if ! echo "$CONTENT" | grep -q "/\*\*"; then
+            ERRORS+="[JavaDoc] Obrigatorio adicionar JavaDoc descritivo no topo de classes, interfaces e records. "
+        fi
     fi
 fi
 

@@ -35,7 +35,9 @@ O ecossistema roda de forma conteinerizada via Docker Compose, dividido nos segu
 ## 3. Padrões Universais de Engenharia (Código e Persistência)
 *Diretrizes globais de qualidade que devem ser seguidas em todo o código Java/Spring:*
 
-* **Documentação Obrigatória (JavaDoc):** Todas as classes, interfaces e records de negócio e domínio devem conter JavaDoc no topo (`/** ... */`) explicando sua responsabilidade arquitetural em português. Métodos de domínio rico e com regras complexas devem conter documentação técnica de seus parâmetros (`@param`), retornos (`@return`) e exceções (`@throws`).
+* **Documentação Obrigatória (JavaDoc) e Preservação Estrita:** Todas as classes, interfaces e records de negócio e domínio devem conter JavaDoc no topo (`/** ... */`) explicando sua responsabilidade arquitetural em português. Métodos de domínio rico e com regras complexas devem conter documentação técnica de seus parâmetros (`@param`), retornos (`@return`) e exceções (`@throws`).
+  * **Regra de Ouro da Preservação:** Ao enriquecer uma classe existente (ex: adicionar anotações OpenAPI/Swagger `@Schema`), é **estritamente proibido** apagar, truncar ou reescrever JavaDocs pré-existentes. Apenas acrescente anotações ou atualize cirurgicamente os `@param` caso a assinatura do método mude.
+* **Princípio da Menor Alteração (Edições Cirúrgicas):** É proibido reescrever arquivos inteiros ou dezenas de linhas de testes/código quando a demanda exigir apenas pequenas alterações ou adições pontuais. Modifique apenas o estritamente necessário para manter o histórico do Git limpo, focado e previsível.
 * **Modelo de Domínio Rico (Rich Domain Model):** Proibido criar entidades anêmicas. Mudanças de estado e validações de negócio devem ocorrer através de métodos expressivos dentro da própria entidade.
 * **Isolamento de Camadas (Interface vs. Implementação):** Todo serviço de negócio DEVE declarar sua **interface de contrato** no pacote `domain.[subdominio].service` e sua **classe de implementação** concreta no pacote `domain.[subdominio].service.impl`.
 * **Gerenciamento Transacional (`@Transactional`):** 
@@ -48,7 +50,10 @@ O ecossistema roda de forma conteinerizada via Docker Compose, dividido nos segu
   * **Paginação Automática:** Endpoints paginados (`Page<EntidadeJPA>`) devem utilizar o `PagedResourcesAssembler` nativo do Spring nos Controllers (`pagedResourcesAssembler.toModel(page, assembler)`), preservando filtros e anexando links (`self`, `next`, `prev`, `first`, `last`) automaticamente.
   * O Assembler recebe a Entidade JPA, injeta internamente o Mapper do MapStruct, converte no DTO de resposta e anexa os links de hipermídia type-safe.
   * O Controller atua de forma limpa invocando diretamente `assembler.toModel(entity)` ou `pagedResourcesAssembler.toModel(...)`.
-* **Configurações Centralizadas e Fortemente Tipadas (`@ConfigurationProperties`):** É proibido o uso disperso de `@Value` pelo código. Toda configuração da aplicação deve ser centralizada em classes ou records tipados anotados com `@ConfigurationProperties`.
+* **Configurações Centralizadas, Tipadas (`@ConfigurationProperties`) e Sem Mocks:**
+  * É proibido o uso disperso de `@Value` pelo código.
+  * Toda configuração deve ser centralizada em records tipados sob `@ConfigurationProperties(prefix = "...")`.
+  * Proibido criar construtores secundários com valores mockados ou listas hardcoded dentro dos records de propriedades. O record deve refletir puramente o que vem do ambiente/YAML.
 * **Tratamento Global de Erros com RFC 7807 (`ProblemDetail`):** Proibido criar DTOs manuais de erro genéricos. Toda resposta de erro REST da aplicação deve utilizar o padrão nativo **RFC 7807 (`ProblemDetail`)** fornecido pelo Spring Boot via `@RestControllerAdvice` estendendo `ResponseEntityExceptionHandler`.
 * **Lombok sem Anemia:** Proibido `@Data` e `@Value`. Uso estrito de `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor` e `@AllArgsConstructor`.
 * **Injeção de Dependências:** Proibido `@Autowired`. Injeção exclusivamente por construtor utilizando `private final` e anotação `@RequiredArgsConstructor` do Lombok.
@@ -97,7 +102,7 @@ src/main/java/com/[empresa]/[modulo]/
 
 ## 5. Normalização de Entrada de Dados (Trim Automático)
 * **O Problema:** Usuários e integrações costumam enviar espaços em branco acidentais no início ou no fim de textos em formulários e JSONs (ex: `"  Texto   "`). Tratar isso manualmente em cada regra de negócio suja o código.
-* **A Solução (Jackson Global):** A aplicação possui o `TrimStringDeserializer` registrado globalmente no Jackson 3.
+* **A Solução (Jackson Global):** A aplicação possui o `TrimStringDeserializer` registrado globalmente no Jackson.
 * **Regra para a IA:** A IA **não deve** criar códigos manuais de limpeza de texto (como `string.trim()`) nos Services ou Controllers. O framework de serialização já faz isso de forma transparente na entrada.
 
 ---
@@ -126,3 +131,19 @@ src/main/java/com/[empresa]/[modulo]/
 * **Persistência Híbrida (Relacional + JSONB):** O banco utiliza colunas relacionais fixas para campos financeiros e filtros críticos (`platform`, `shop_id`, `order_sn`, `status`, `reconciled`, `escrow_amount`) combinadas com a coluna curinga `metadata JSONB` (com índice `GIN`). Isso absorve itens, SKUs, variações, árvores completas de `income_details` e motivos de cancelamento (`cancel_reason`) sem necessidade de `ALTER TABLE`.
 * **Precisão Monetária Máxima `DECIMAL(15,4)`:** Todos os valores financeiros de estimativa, frete cobrado e repasse líquido utilizam `DECIMAL(15,4)` no PostgreSQL e `BigDecimal` no Java para eliminar perdas em microcentavos de comissões e taxas fracionadas de e-commerce.
 * **Event Store Imutável (`marketplace_raw_events`):** Todo webhook recebido de qualquer marketplace é gravado imediatamente em formato append-only com o payload JSON bruto completo antes de ser processado pelo sistema, garantindo auditoria, compliance e reprodutibilidade de eventos.
+* **CORS Dinâmico por Ambiente:** Configuração de Cross-Origin centralizada no `WebCorsConfig` e vinculada ao record `OrderIntegrationProperties.CorsProperties`, permitindo ajuste fino de origens autorizadas via variável de ambiente `CORS_ALLOWED_ORIGINS`.
+
+---
+
+## 9. Gestão de Ambientes, `.env` e Commits Detalhados
+
+* **Valores Oficiais nas Variáveis de Ambiente (`.env`):**
+  * O `src/main/resources/application.yaml` **NÃO DEVE** conter valores padrão/fallbacks silenciosos na sintaxe `${VARIAVEL:valor_padrao}` para propriedades da aplicação.
+  * Todas as variáveis devem ser mapeadas puramente como `${VARIAVEL}`.
+  * Os valores reais oficiais de desenvolvimento residem exclusivamente no `.env.dev` (ignorado pelo Git).
+* **Templates de Exemplo Genéricos (`.env.*.example`):**
+  * O `.env.dev.example` e `.env.prod.example` servem exclusivamente como guias/templates para outros desenvolvedores ou servidores.
+  * **Regra de Privacidade:** É expressamente proibido colocar dados reais de clientes, domínios específicos de produção (`dcriar.com`, tokens ativos) nesses arquivos de exemplo. Utilize sempre domínios de demonstração genéricos (ex: `https://painel.exemplo.com.br`, `https://api.exemplo.com.br`).
+  * **Preservação de Seções:** Nunca delete seções não relacionadas (como MongoDB, Redis, n8n/ngrok) ao editar variáveis de ambiente.
+* **Padrão Oficial de Mensagens de Commit (Git):**
+  * Todos os commits devem seguir o padrão Conventional Commits com corpo explicativo em tópicos (`bullet points`), listando detalhadamente o que foi feito, por que foi feito e os resultados dos testes executados.
