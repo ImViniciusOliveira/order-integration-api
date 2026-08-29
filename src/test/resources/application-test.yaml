@@ -14,3 +14,6 @@ spring:
     redis:
       host: localhost
       port: 6379
+
+springdoc:
+  enable-hateoas: false
