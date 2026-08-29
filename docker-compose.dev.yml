@@ -100,6 +100,7 @@ services:
       - SPRING_FLYWAY_ENABLED=true
       - ESCROW_REDIS_QUEUE_KEY=${ESCROW_REDIS_QUEUE_KEY}
       - ESCROW_DELAY_MINUTES=${ESCROW_DELAY_MINUTES}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     networks:
       - order-integration-network
     depends_on:

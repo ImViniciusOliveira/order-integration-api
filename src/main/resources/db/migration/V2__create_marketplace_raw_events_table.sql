@@ -5,7 +5,8 @@ CREATE TABLE marketplace_raw_events (
     order_sn VARCHAR(100),
     event_type VARCHAR(100) NOT NULL,
     payload_json JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_raw_events_platform ON marketplace_raw_events (platform);
