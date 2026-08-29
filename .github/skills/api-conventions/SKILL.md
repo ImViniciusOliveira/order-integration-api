@@ -35,18 +35,38 @@ A camada de API reside sob o pacote `api`:
   }
   ```
 
-## 4. Padrão HATEOAS Model Assembler
-- Os Assemblers no pacote `api.hateoas` implementam `RepresentationModelAssembler<EntidadeJPA, EntityModel<ResponseDTO>>`.
-- **Fluxo limpo no Controller:**
-  1. O Controller chama o Service e obtém a Entidade JPA.
-  2. O Controller passa a Entidade diretamente para o `Assembler`.
-  3. O `Assembler` injeta internamente o `Mapper`, gera o DTO de Response, anexa os links (`self`, `collection`, etc.) e devolve o `EntityModel`.
-  4. Isso blinda a API contra recursão infinita (`StackOverflowError`) e `LazyInitializationException`.
+## 4. Diretrizes de HATEOAS Type-Safe e Paginação Limpa
 
-## 5. Paginação Obrigatória e Hipermídia
-- Todos os endpoints de listagem devem aceitar `Pageable` e retornar respostas paginadas.
-- Utilize HATEOAS com `PagedModel` ou `CollectionModel` para fornecer links de navegação (`next`, `prev`, `self`), seguindo o padrão HAL (`_embedded`).
+### 4.1. Proibição de Hardcoding com `Link.of`
+É expressamente proibido construir links injetando rotas estáticas em formato de String (ex: `Link.of("/api/v1/orders/123")`).
+* **Motivo:** Quebra a refatoração automática da IDE e gera bugs silenciosos em produção caso rotas ou versionamentos sejam alterados.
 
-## 6. Normalização Global de Strings (Trim)
+### 4.2. Construção Reflexiva Type-Safe com `linkTo(methodOn(...))`
+Utilize sempre a reflexão nativa do Spring HATEOAS:
+```java
+// Link para recurso individual
+linkTo(methodOn(OrderMasterController.class).findById(entity.getId())).withSelfRel();
+
+// Link para coleções / filtros (passagem de null em methodOn é o padrão oficial seguro do Spring HATEOAS 3.x+)
+linkTo(methodOn(OrderMasterController.class).searchOrders(null, null)).withRel("collection");
+```
+
+### 4.3. Paginação Automática via `PagedResourcesAssembler`
+Nos Controllers com endpoints paginados (`Page<T>`), nunca construa links de paginação manualmente.
+Injete o `PagedResourcesAssembler<EntidadeJPA>` e delegue a geração do `PagedModel`:
+```java
+@GetMapping
+public ResponseEntity<PagedModel<EntityModel<OrderMasterResponse>>> searchOrders(
+        @ModelAttribute OrderFilterRequest filter,
+        Pageable pageable) {
+    OrderFilterCriteria criteria = orderMasterMapper.toCriteria(filter);
+    Page<OrderMaster> ordersPage = orderMasterService.searchOrders(criteria, pageable);
+    PagedModel<EntityModel<OrderMasterResponse>> pagedModel = pagedResourcesAssembler.toModel(ordersPage, orderMasterModelAssembler);
+    return ResponseEntity.ok(pagedModel);
+}
+```
+* O Spring lerá automaticamente a requisição atual (`HttpServletRequest`) e anexará os links `self`, `next`, `prev`, `first` e `last`, preservando todos os parâmetros de busca aplicados.
+
+## 5. Normalização Global de Strings (Trim)
 - O Jackson 3 possui o deserializer global `TrimStringDeserializer` ativo.
 - Não faça trim manual em controllers ou services.

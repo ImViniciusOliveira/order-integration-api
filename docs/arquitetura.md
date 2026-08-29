@@ -42,10 +42,12 @@ O ecossistema roda de forma conteinerizada via Docker Compose, dividido nos segu
   * As classes de implementação de serviço devem ser anotadas no topo com `@Transactional(readOnly = true)`.
   * Métodos de escrita e alteração de estado devem ser anotados explicitamente com `@Transactional`.
 * **DTO Records 100% Puros e Anêmicos:** Records nos pacotes `api.dto` devem ser exclusivamente transportadores imutáveis de dados, sem métodos internos de conversão (`toEntity()`, `toCriteria()`). Todo mapeamento é exclusivo do **MapStruct**.
-* **Padrão HATEOAS Model Assembler:**
+* **Padrão HATEOAS Model Assembler & Paginação Type-Safe:**
   * Os assemblers no pacote `api.hateoas` implementam `RepresentationModelAssembler<EntidadeJPA, EntityModel<ResponseDTO>>`.
-  * O Assembler recebe a Entidade JPA, injeta internamente o Mapper do MapStruct, converte no DTO de resposta e anexa os links de hipermídia (`self`, `collection`, etc.).
-  * O Controller atua de forma limpa invocando diretamente `assembler.toModel(entity)`.
+  * **Proibição de Hardcoding:** É estritamente proibido criar links manuais com Strings (`Link.of("/api/v1/...")`). Toda criação de links deve usar a reflexão nativa do Spring HATEOAS (`linkTo(methodOn(Controller.class)...)`). A passagem de argumentos `null` no `methodOn` para rotas de coleção é o padrão seguro e suportado no Spring HATEOAS 3.x+.
+  * **Paginação Automática:** Endpoints paginados (`Page<EntidadeJPA>`) devem utilizar o `PagedResourcesAssembler` nativo do Spring nos Controllers (`pagedResourcesAssembler.toModel(page, assembler)`), preservando filtros e anexando links (`self`, `next`, `prev`, `first`, `last`) automaticamente.
+  * O Assembler recebe a Entidade JPA, injeta internamente o Mapper do MapStruct, converte no DTO de resposta e anexa os links de hipermídia type-safe.
+  * O Controller atua de forma limpa invocando diretamente `assembler.toModel(entity)` ou `pagedResourcesAssembler.toModel(...)`.
 * **Configurações Centralizadas e Fortemente Tipadas (`@ConfigurationProperties`):** É proibido o uso disperso de `@Value` pelo código. Toda configuração da aplicação deve ser centralizada em classes ou records tipados anotados com `@ConfigurationProperties`.
 * **Tratamento Global de Erros com RFC 7807 (`ProblemDetail`):** Proibido criar DTOs manuais de erro genéricos. Toda resposta de erro REST da aplicação deve utilizar o padrão nativo **RFC 7807 (`ProblemDetail`)** fornecido pelo Spring Boot via `@RestControllerAdvice` estendendo `ResponseEntityExceptionHandler`.
 * **Lombok sem Anemia:** Proibido `@Data` e `@Value`. Uso estrito de `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor` e `@AllArgsConstructor`.
@@ -83,7 +85,7 @@ src/main/java/com/[empresa]/[modulo]/
 │       ├── model/                      # Records e objetos internos de domínio
 │       ├── repository/                 # Repositórios Spring Data JPA (JpaRepository + JpaSpecificationExecutor)
 │       ├── service/                    # Contratos/Interfaces de Serviço
-│       ├── service/impl/               # Implementações concretas de Serviço (@Transactional)
+│       │   └── impl/                   # Implementações concretas de Serviço (@Transactional)
 │       └── specification/              # Specifications dinâmicas (Criteria API)
 ├── config/                             # Configurações Globais (Timezone, Jackson, Properties tipadas, CORS, OpenAPI)
 └── exception/                          # Tratamento de Erros e Exceções

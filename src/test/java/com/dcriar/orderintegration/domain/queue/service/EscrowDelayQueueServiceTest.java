@@ -15,14 +15,12 @@ import java.time.Duration;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
- * Testes unitários para validar a fila com atraso (Delay Queue) no Redis.
+ * Testes unitários para o serviço de fila de atraso de conciliação de Escrow usando Redis ZSet.
  */
 @ExtendWith(MockitoExtension.class)
 class EscrowDelayQueueServiceTest {
@@ -39,7 +37,8 @@ class EscrowDelayQueueServiceTest {
     void setUp() {
         OrderIntegrationProperties properties = new OrderIntegrationProperties(
                 new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
-                new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5)
+                new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
+                new OrderIntegrationProperties.SecurityProperties("test-key")
         );
 
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
@@ -48,36 +47,29 @@ class EscrowDelayQueueServiceTest {
 
     @Test
     @DisplayName("Deve agendar pedido no ZSet do Redis com timestamp futuro")
-    void deveAgendarPedidoNoRedisComTimestampFuturo() {
-        // Act
-        delayQueueService.scheduleReconciliation("SHOPEE", "240828ABC123", Duration.ofMinutes(120));
+    void deveAgendarPedidoNoRedis() {
+        delayQueueService.scheduleReconciliation("SHOPEE", "240828XYZ", Duration.ofMinutes(120));
 
-        // Assert
-        verify(zSetOperations).add(eq("dcriar:orders:escrow_delay_queue"), eq("SHOPEE:240828ABC123"), anyDouble());
+        verify(zSetOperations).add(eq("dcriar:orders:escrow_delay_queue"), eq("SHOPEE:240828XYZ"), anyDouble());
     }
 
     @Test
-    @DisplayName("Deve resgatar pedidos prontos cujo score é menor ou igual ao tempo atual")
-    void deveResgatarPedidosProntosDaFila() {
-        // Arrange
-        when(zSetOperations.rangeByScore(eq("dcriar:orders:escrow_delay_queue"), eq(0.0), anyDouble(), eq(0L), eq(50L)))
-                .thenReturn(Set.of("SHOPEE:240828ABC123"));
+    @DisplayName("Deve buscar pedidos prontos do Redis")
+    void deveBuscarPedidosProntos() {
+        lenient().when(zSetOperations.rangeByScore(eq("dcriar:orders:escrow_delay_queue"), eq(0.0), anyDouble(), eq(0L), eq(50L)))
+                .thenReturn(Set.of("SHOPEE:240828XYZ"));
 
-        // Act
         Set<String> readyOrders = delayQueueService.pollReadyOrders(50);
 
-        // Assert
-        assertThat(readyOrders).containsExactly("SHOPEE:240828ABC123");
+        assertThat(readyOrders).containsExactly("SHOPEE:240828XYZ");
     }
 
     @Test
-    @DisplayName("Deve remover pedido do ZSet do Redis")
+    @DisplayName("Deve remover pedido do Redis com sucesso")
     void deveRemoverPedidoDoRedis() {
-        // Act
-        delayQueueService.remove("SHOPEE", "240828ABC123");
+        delayQueueService.remove("SHOPEE", "240828XYZ");
 
-        // Assert
-        verify(zSetOperations).remove("dcriar:orders:escrow_delay_queue", "SHOPEE:240828ABC123");
+        verify(zSetOperations).remove("dcriar:orders:escrow_delay_queue", "SHOPEE:240828XYZ");
     }
 
     @Test

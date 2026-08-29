@@ -5,6 +5,7 @@ import com.dcriar.orderintegration.domain.order.model.OrderFilterCriteria;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.OrderMasterService;
 import com.dcriar.orderintegration.domain.order.specification.OrderMasterSpecifications;
+import com.dcriar.orderintegration.exception.custom.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,12 +23,18 @@ import java.util.Optional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class OrderMasterServiceImpl implements OrderMasterService {
 
     private final OrderMasterRepository orderMasterRepository;
 
     @Override
-    @Transactional(readOnly = true)
+    public OrderMaster findById(Long id) {
+        return orderMasterRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido não encontrado com o ID: " + id));
+    }
+
+    @Override
     public Page<OrderMaster> searchOrders(OrderFilterCriteria criteria, Pageable pageable) {
         Specification<OrderMaster> spec = (root, query, cb) -> cb.conjunction();
 
@@ -46,7 +53,6 @@ public class OrderMasterServiceImpl implements OrderMasterService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Optional<OrderMaster> findByPlatformAndOrderSn(String platform, String orderSn) {
         return orderMasterRepository.findByPlatformAndOrderSn(platform, orderSn);
     }
@@ -55,7 +61,7 @@ public class OrderMasterServiceImpl implements OrderMasterService {
     @Transactional
     public OrderMaster reconcileEscrow(String platform, String orderSn, BigDecimal escrowAmount, BigDecimal shippingFeeBorneBySeller) {
         OrderMaster order = orderMasterRepository.findByPlatformAndOrderSn(platform, orderSn)
-                .orElseThrow(() -> new IllegalArgumentException("Pedido não encontrado para conciliação: " + platform + ":" + orderSn));
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido não encontrado para conciliação: " + platform + ":" + orderSn));
 
         order.conciliarEscrow(escrowAmount, shippingFeeBorneBySeller);
         OrderMaster saved = orderMasterRepository.save(order);

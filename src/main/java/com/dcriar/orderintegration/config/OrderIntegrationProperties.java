@@ -7,13 +7,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * Propriedades fortemente tipadas de configuração da aplicação carregadas do {@code application.yaml}
  * ou sobrescritas por variáveis de ambiente.
  *
- * @param redis  configurações de chave e infraestrutura do Redis
- * @param escrow configurações de conciliação financeira de Escrow
+ * @param redis    configurações de chave e infraestrutura do Redis
+ * @param escrow   configurações de conciliação financeira de Escrow
+ * @param security configurações de segurança e chaves de autenticação interna
  */
 @ConfigurationProperties(prefix = "order-integration")
 public record OrderIntegrationProperties(
         @DefaultValue RedisProperties redis,
-        @DefaultValue EscrowProperties escrow
+        @DefaultValue EscrowProperties escrow,
+        @DefaultValue SecurityProperties security
 ) {
 
     /**
@@ -41,6 +43,16 @@ public record OrderIntegrationProperties(
             @DefaultValue("60000") long workerIntervalMs,
             @DefaultValue("50") int batchSize,
             @DefaultValue("5") int maxRetries
+    ) {
+    }
+
+    /**
+     * Configurações de segurança e autenticação interna para webhooks e integrações.
+     *
+     * @param internalApiKey chave de autenticação estática exigida no cabeçalho X-Internal-API-Key
+     */
+    public record SecurityProperties(
+            @DefaultValue("dev-internal-key-12345") String internalApiKey
     ) {
     }
 }

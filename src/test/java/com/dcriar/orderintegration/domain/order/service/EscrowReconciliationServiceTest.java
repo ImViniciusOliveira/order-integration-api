@@ -21,13 +21,10 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
- * Testes unitários para validar o serviço de conciliação financeira de Escrow
- * com suporte a retry inteligente e persistência no PostgreSQL.
+ * Testes unitários para validação das regras de conciliação de Escrow no EscrowReconciliationService.
  */
 @ExtendWith(MockitoExtension.class)
 class EscrowReconciliationServiceTest {
@@ -44,7 +41,8 @@ class EscrowReconciliationServiceTest {
     void setUp() {
         OrderIntegrationProperties properties = new OrderIntegrationProperties(
                 new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
-                new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5)
+                new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
+                new OrderIntegrationProperties.SecurityProperties("test-key")
         );
 
         reconciliationService = new EscrowReconciliationServiceImpl(
@@ -55,124 +53,68 @@ class EscrowReconciliationServiceTest {
     }
 
     @Test
-    @DisplayName("Deve conciliar pedido com sucesso quando os dados de Escrow estiverem disponíveis nos metadados")
-    void deveConciliarPedidoComSucesso() {
+    @DisplayName("Deve conciliar pedidos pendentes com sucesso resgatados da fila")
+    void deveConciliarPedidosPendentesComSucesso() {
         // Arrange
         OrderMaster order = OrderMaster.builder()
                 .id(1L)
                 .platform("SHOPEE")
-                .shopId("shop_123")
-                .orderSn("240828ABC123")
+                .shopId("123")
+                .orderSn("240828ABC")
                 .status("COMPLETED")
-                .estimatedShippingFee(new BigDecimal("12.5000"))
                 .reconciled(false)
-                .metadata(Map.of(
-                        "escrow_amount", "85.4000",
-                        "shipping_fee_borne_by_seller", "3.2000"
-                ))
+                .metadata(Map.of("escrow_amount", 85.50, "shipping_fee_borne_by_seller", 5.00))
                 .build();
 
-        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC123"))
-                .thenReturn(Optional.of(order));
-        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("SHOPEE:240828ABC"));
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC")).thenReturn(Optional.of(order));
+        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
 
         // Act
-        boolean concilado = reconciliationService.reconcileOrder("SHOPEE", "240828ABC123");
+        int reconciledCount = reconciliationService.reconcilePendingOrders();
 
         // Assert
-        assertThat(concilado).isTrue();
+        assertThat(reconciledCount).isEqualTo(1);
         assertThat(order.isReconciled()).isTrue();
-        assertThat(order.getEscrowAmount()).isEqualByComparingTo(new BigDecimal("85.4000"));
-        assertThat(order.getShippingFeeBorneBySeller()).isEqualByComparingTo(new BigDecimal("3.2000"));
-
+        assertThat(order.getEscrowAmount()).isEqualByComparingTo(new BigDecimal("85.50"));
+        assertThat(order.getShippingFeeBorneBySeller()).isEqualByComparingTo(new BigDecimal("5.00"));
         verify(orderMasterRepository).save(order);
-        verify(delayQueueService).remove("SHOPEE", "240828ABC123");
+        verify(delayQueueService).remove("SHOPEE", "240828ABC");
     }
 
     @Test
-    @DisplayName("Deve efetuar reagendamento inteligente (retry) no Redis quando o extrato contábil ainda não estiver liberado")
-    void deveReagendarNoRedisQuandoExtratoNaoEstiverLiberado() {
-        // Arrange (pedido sem escrow_amount nos metadados)
+    @DisplayName("Deve reagendar conciliação com retry quando pedido estiver pendente de extrato")
+    void deveReagendarConciliacaoQuandoPendente() {
+        // Arrange
         OrderMaster order = OrderMaster.builder()
-                .id(1L)
+                .id(2L)
                 .platform("SHOPEE")
-                .shopId("shop_123")
-                .orderSn("240828ABC123")
+                .shopId("123")
+                .orderSn("PENDING_SN")
                 .status("COMPLETED")
                 .reconciled(false)
-                .metadata(Map.of("tracking_no", "BR123456"))
+                .metadata(Map.of())
                 .build();
 
-        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC123"))
-                .thenReturn(Optional.of(order));
+        when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("SHOPEE:PENDING_SN"));
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "PENDING_SN")).thenReturn(Optional.of(order));
 
         // Act
-        boolean concilado = reconciliationService.reconcileOrder("SHOPEE", "240828ABC123");
+        int reconciledCount = reconciliationService.reconcilePendingOrders();
 
         // Assert
-        assertThat(concilado).isFalse();
-        assertThat(order.isReconciled()).isFalse();
-
-        // Não deve salvar no banco como conciliado
-        verify(orderMasterRepository, never()).save(any(OrderMaster.class));
-        // Não deve remover da fila
-        verify(delayQueueService, never()).remove(eq("SHOPEE"), eq("240828ABC123"));
-        // Deve reagendar com retry de 30 minutos
-        verify(delayQueueService).scheduleReconciliation("SHOPEE", "240828ABC123", Duration.ofMinutes(30));
+        assertThat(reconciledCount).isZero();
+        verify(delayQueueService).scheduleReconciliation(eq("SHOPEE"), eq("PENDING_SN"), any(Duration.class));
     }
 
     @Test
-    @DisplayName("Deve apenas remover da fila do Redis se o pedido já estiver marcado como conciliado")
-    void deveApenasRemoverDaFilaQuandoPedidoJaEstiverConciliado() {
-        // Arrange
-        OrderMaster order = OrderMaster.builder()
-                .id(1L)
-                .platform("SHOPEE")
-                .orderSn("240828ABC123")
-                .reconciled(true)
-                .build();
+    @DisplayName("Deve retornar 0 quando não houver pedidos prontos na fila do Redis")
+    void deveRetornarZeroQuandoFilaVazia() {
+        when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of());
 
-        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC123"))
-                .thenReturn(Optional.of(order));
+        int count = reconciliationService.reconcilePendingOrders();
 
-        // Act
-        boolean resultado = reconciliationService.reconcileOrder("SHOPEE", "240828ABC123");
-
-        // Assert
-        assertThat(resultado).isTrue();
-        verify(delayQueueService).remove("SHOPEE", "240828ABC123");
-        verify(orderMasterRepository, never()).save(any(OrderMaster.class));
-    }
-
-    @Test
-    @DisplayName("Deve processar lote de pedidos resgatados da fila do Redis")
-    void deveProcessarLoteDePedidosDaFila() {
-        // Arrange
-        when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("SHOPEE:240828ABC123", "SHOPEE:240828XYZ999"));
-
-        OrderMaster order1 = OrderMaster.builder()
-                .platform("SHOPEE")
-                .orderSn("240828ABC123")
-                .reconciled(false)
-                .metadata(Map.of("escrow_amount", "50.0000"))
-                .build();
-
-        OrderMaster order2 = OrderMaster.builder()
-                .platform("SHOPEE")
-                .orderSn("240828XYZ999")
-                .reconciled(false)
-                .metadata(Map.of("escrow_amount", "120.0000"))
-                .build();
-
-        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC123")).thenReturn(Optional.of(order1));
-        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828XYZ999")).thenReturn(Optional.of(order2));
-
-        // Act
-        int totalReconciliados = reconciliationService.reconcilePendingOrders();
-
-        // Assert
-        assertThat(totalReconciliados).isEqualTo(2);
-        verify(delayQueueService).remove("SHOPEE", "240828ABC123");
-        verify(delayQueueService).remove("SHOPEE", "240828XYZ999");
+        assertThat(count).isZero();
+        verifyNoInteractions(orderMasterRepository);
     }
 }

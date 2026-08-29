@@ -14,6 +14,14 @@ import java.util.Optional;
 public interface OrderMasterService {
 
     /**
+     * Busca um pedido mestre pelo seu identificador único interno.
+     *
+     * @param id identificador único do pedido
+     * @return a entidade {@link OrderMaster} correspondente
+     */
+    OrderMaster findById(Long id);
+
+    /**
      * Realiza a consulta paginada de pedidos aplicando filtros dinâmicos via Specifications.
      *
      * @param criteria critérios de filtro informados pelo usuário

@@ -7,6 +7,8 @@ spring:
     open-in-view: false
 
 order-integration:
+  security:
+    internal-api-key: ${INTERNAL_API_KEY:dev-internal-key-12345}
   redis:
     escrow-queue-key: ${ESCROW_REDIS_QUEUE_KEY:dcriar:orders:escrow_delay_queue}
   escrow:
