@@ -8,10 +8,10 @@ description: Regras para endpoints REST, DTO records, MapStruct, HATEOAS, RFC 78
 ## 1. Estrutura Modular da Camada Web (`api`)
 A camada de API reside sob o pacote `api`:
 - `api.controller.[subdominio]`: Controladores REST.
-- `api.dto.request`: Records/classes de entrada.
-- `api.dto.response`: Records/classes de saída.
+- `api.dto.request`: Records de entrada.
+- `api.dto.response`: Records de saída.
 - `api.dto.filter`: Records de critérios de busca avançada.
-- `api.hateoas`: Assemblers e modelos de hipermídia (`PagedModel`, `RepresentationModel`).
+- `api.hateoas`: Assemblers e modelos de hipermídia (`PagedModel`, `CollectionModel`, `EntityModel`).
 - `api.mapper`: Interfaces de mapeamento MapStruct.
 - `api.validation`: Anotações customizadas e `ConstraintValidator`.
 
@@ -22,8 +22,8 @@ A camada de API reside sob o pacote `api`:
 
 ## 3. DTO Records & MapStruct
 - Entidades JPA nunca são expostas diretamente nos controllers.
-- Use `record` do Java para todos os DTOs de Request, Response e Filter.
-- Use **MapStruct** para conversão entre DTOs e Entidades, configurado obrigatoriamente com `disableBuilder = true`:
+- Use `record` do Java para todos os DTOs de Request, Response e Filter (100% puros e sem lógica de negócio).
+- Use **MapStruct** para conversão entre DTOs, Critérios e Entidades, configurado obrigatoriamente com `disableBuilder = true`:
   ```java
   @Mapper(
       componentModel = MappingConstants.ComponentModel.SPRING,
@@ -35,10 +35,18 @@ A camada de API reside sob o pacote `api`:
   }
   ```
 
-## 4. Paginação Obrigatória e HATEOAS
-- Todos os endpoints de listagem devem aceitar `Pageable` e retornar respostas paginadas.
-- Utilize HATEOAS com `PagedModel` para fornecer links de navegação (`next`, `prev`, `self`).
+## 4. Padrão HATEOAS Model Assembler
+- Os Assemblers no pacote `api.hateoas` implementam `RepresentationModelAssembler<EntidadeJPA, EntityModel<ResponseDTO>>`.
+- **Fluxo limpo no Controller:**
+  1. O Controller chama o Service e obtém a Entidade JPA.
+  2. O Controller passa a Entidade diretamente para o `Assembler`.
+  3. O `Assembler` injeta internamente o `Mapper`, gera o DTO de Response, anexa os links (`self`, `collection`, etc.) e devolve o `EntityModel`.
+  4. Isso blinda a API contra recursão infinita (`StackOverflowError`) e `LazyInitializationException`.
 
-## 5. Normalização Global de Strings (Trim)
+## 5. Paginação Obrigatória e Hipermídia
+- Todos os endpoints de listagem devem aceitar `Pageable` e retornar respostas paginadas.
+- Utilize HATEOAS com `PagedModel` ou `CollectionModel` para fornecer links de navegação (`next`, `prev`, `self`), seguindo o padrão HAL (`_embedded`).
+
+## 6. Normalização Global de Strings (Trim)
 - O Jackson 3 possui o deserializer global `TrimStringDeserializer` ativo.
 - Não faça trim manual em controllers ou services.
