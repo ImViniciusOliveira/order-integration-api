@@ -129,3 +129,5 @@ if [[ -n "$ERRORS" ]]; then
     echo "VIOLACAO ARQUITETURAL: $ERRORS" >&2
     exit 1
 fi
+
+exit 0
