@@ -105,6 +105,18 @@ if [[ "$FILE_PATH" == *domain/*.java ]] && echo "$CONTENT" | grep -q "\.api\."; 
     ERRORS+="[Isolamento] Proibido Domain importar pacote API. "
 fi
 
+if [[ "$FILE_PATH" == *api/dto/* ]] && echo "$CONTENT" | grep -qE "(@Entity|@Table|toEntity\()"; then
+    ERRORS+="[DTOs] Proibido anotações JPA ou métodos toEntity em DTOs. DTOs devem ser anêmicos e convertidos via MapStruct. "
+fi
+
+if [[ "$FILE_PATH" == *api/mapper/*Mapper.java ]] && echo "$CONTENT" | grep -q "@Mapper" && ! echo "$CONTENT" | grep -q "disableBuilder = true"; then
+    ERRORS+="[MapStruct] Obrigatorio configurar disableBuilder = true no @Mapper para compatibilidade com Lombok. "
+fi
+
+if [[ "$FILE_PATH" == *service/impl/*ServiceImpl.java ]] && ! echo "$CONTENT" | grep -q "@Transactional"; then
+    ERRORS+="[Transacional] Obrigatorio declarar @Transactional(readOnly = true) no topo de classes ServiceImpl. "
+fi
+
 # Validacao de JavaDoc na declaracao da classe/interface/record
 if [[ "$FILE_PATH" == *src/main/java/* ]] && echo "$CONTENT" | grep -qE "(public|abstract|final)?[[:space:]]*(class|interface|record)[[:space:]]+[A-Z]"; then
     if ! echo "$CONTENT" | grep -q "/\*\*"; then
@@ -117,5 +129,3 @@ if [[ -n "$ERRORS" ]]; then
     echo "VIOLACAO ARQUITETURAL: $ERRORS" >&2
     exit 1
 fi
-
-exit 0
