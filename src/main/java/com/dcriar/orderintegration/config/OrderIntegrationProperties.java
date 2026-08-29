@@ -1,7 +1,8 @@
 package com.dcriar.orderintegration.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.bind.DefaultValue;
+
+import java.util.List;
 
 /**
  * Propriedades fortemente tipadas de configuração da aplicação carregadas do {@code application.yaml}
@@ -10,12 +11,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param redis    configurações de chave e infraestrutura do Redis
  * @param escrow   configurações de conciliação financeira de Escrow
  * @param security configurações de segurança e chaves de autenticação interna
+ * @param cors     configurações de origens permitidas para requisições cross-origin (CORS)
  */
 @ConfigurationProperties(prefix = "order-integration")
 public record OrderIntegrationProperties(
-        @DefaultValue RedisProperties redis,
-        @DefaultValue EscrowProperties escrow,
-        @DefaultValue SecurityProperties security
+        RedisProperties redis,
+        EscrowProperties escrow,
+        SecurityProperties security,
+        CorsProperties cors
 ) {
 
     /**
@@ -24,7 +27,7 @@ public record OrderIntegrationProperties(
      * @param escrowQueueKey nome da chave do Sorted Set (ZSet) para fila de atraso de conciliação
      */
     public record RedisProperties(
-            @DefaultValue("dcriar:orders:escrow_delay_queue") String escrowQueueKey
+            String escrowQueueKey
     ) {
     }
 
@@ -38,11 +41,11 @@ public record OrderIntegrationProperties(
      * @param maxRetries        número máximo de reagendamentos permitidos antes de descarte/alerta
      */
     public record EscrowProperties(
-            @DefaultValue("120") int delayMinutes,
-            @DefaultValue("30") int retryDelayMinutes,
-            @DefaultValue("60000") long workerIntervalMs,
-            @DefaultValue("50") int batchSize,
-            @DefaultValue("5") int maxRetries
+            int delayMinutes,
+            int retryDelayMinutes,
+            long workerIntervalMs,
+            int batchSize,
+            int maxRetries
     ) {
     }
 
@@ -52,7 +55,17 @@ public record OrderIntegrationProperties(
      * @param internalApiKey chave de autenticação estática exigida no cabeçalho X-Internal-API-Key
      */
     public record SecurityProperties(
-            @DefaultValue("dev-internal-key-12345") String internalApiKey
+            String internalApiKey
+    ) {
+    }
+
+    /**
+     * Configurações de origens permitidas para comunicação Cross-Origin (CORS).
+     *
+     * @param allowedOrigins lista de domínios ou padrões de origens autorizadas a consumir a API REST
+     */
+    public record CorsProperties(
+            List<String> allowedOrigins
     ) {
     }
 }

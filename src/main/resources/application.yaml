@@ -17,13 +17,15 @@ springdoc:
   enable-hateoas: false
 
 order-integration:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
   security:
-    internal-api-key: ${INTERNAL_API_KEY:dev-internal-key-12345}
+    internal-api-key: ${INTERNAL_API_KEY}
   redis:
-    escrow-queue-key: ${ESCROW_REDIS_QUEUE_KEY:dcriar:orders:escrow_delay_queue}
+    escrow-queue-key: ${ESCROW_REDIS_QUEUE_KEY}
   escrow:
-    delay-minutes: ${ESCROW_DELAY_MINUTES:120}
-    retry-delay-minutes: ${ESCROW_RETRY_DELAY_MINUTES:30}
-    worker-interval-ms: ${ESCROW_WORKER_INTERVAL_MS:60000}
-    batch-size: ${ESCROW_BATCH_SIZE:50}
-    max-retries: ${ESCROW_MAX_RETRIES:5}
+    delay-minutes: ${ESCROW_DELAY_MINUTES}
+    retry-delay-minutes: ${ESCROW_RETRY_DELAY_MINUTES}
+    worker-interval-ms: ${ESCROW_WORKER_INTERVAL_MS}
+    batch-size: ${ESCROW_BATCH_SIZE}
+    max-retries: ${ESCROW_MAX_RETRIES}

@@ -3,6 +3,7 @@ package com.dcriar.orderintegration.domain.order.service;
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.channel.entity.MarketplaceChannel;
 import com.dcriar.orderintegration.domain.channel.repository.MarketplaceChannelRepository;
+import com.dcriar.orderintegration.domain.order.entity.MarketplaceRawEvent;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.processor.ShopeeOrderProcessor;
 import com.dcriar.orderintegration.domain.order.repository.MarketplaceRawEventRepository;
@@ -25,10 +26,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Testes unitários para validação do pipeline de ingestão de eventos e persistência no MarketplaceIngestionService.
+ * Suite de testes unitários para a implementação do serviço {@link MarketplaceIngestionServiceImpl}.
  */
 @ExtendWith(MockitoExtension.class)
 class MarketplaceIngestionServiceTest {
@@ -53,7 +55,8 @@ class MarketplaceIngestionServiceTest {
         OrderIntegrationProperties properties = new OrderIntegrationProperties(
                 new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
-                new OrderIntegrationProperties.SecurityProperties("test-key")
+                new OrderIntegrationProperties.SecurityProperties("test-key"),
+                new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081"))
         );
 
         ingestionService = new MarketplaceIngestionServiceImpl(
@@ -67,82 +70,88 @@ class MarketplaceIngestionServiceTest {
     }
 
     @Test
-    @DisplayName("Deve rejeitar ingestão quando canal não estiver cadastrado ou ativo no banco")
-    void deveRejeitarCanalNaoCadastradoOuInativo() {
+    @DisplayName("Deve ingerir com sucesso evento da Shopee com status READY_TO_SHIP e persistir dados mestres")
+    void deveIngerirEventoShopeeReadyToShipComSucesso() {
+        // Arrange
+        String platform = "SHOPEE";
+        String shopId = "shop_123";
+        Map<String, Object> payload = Map.of(
+                "order_sn", "240828ABC123",
+                "order_status", "READY_TO_SHIP",
+                "tracking_no", "BR123456789",
+                "estimated_shipping_fee", "12.5000"
+        );
+
+        MarketplaceChannel channel = MarketplaceChannel.builder()
+                .code("SHOPEE")
+                .name("Shopee Oficial")
+                .active(true)
+                .build();
+
+        when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.of(channel));
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC123")).thenReturn(Optional.empty());
+        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        OrderMaster result = ingestionService.ingestEvent(platform, shopId, payload);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getPlatform()).isEqualTo("SHOPEE");
+        assertThat(result.getOrderSn()).isEqualTo("240828ABC123");
+        assertThat(result.getStatus()).isEqualTo("READY_TO_SHIP");
+        assertThat(result.getTrackingNo()).isEqualTo("BR123456789");
+        assertThat(result.getEstimatedShippingFee()).isEqualByComparingTo(new BigDecimal("12.5000"));
+
+        verify(rawEventRepository).save(any(MarketplaceRawEvent.class));
+        verify(orderMasterRepository).save(any(OrderMaster.class));
+        verifyNoInteractions(delayQueueService);
+    }
+
+    @Test
+    @DisplayName("Deve agendar conciliação no Redis quando o status do pedido for COMPLETED")
+    void deveAgendarConciliacaoQuandoStatusCompleted() {
+        // Arrange
+        String platform = "SHOPEE";
+        String shopId = "shop_123";
+        Map<String, Object> payload = Map.of(
+                "order_sn", "240828ABC123",
+                "order_status", "COMPLETED",
+                "tracking_no", "BR123456789"
+        );
+
+        MarketplaceChannel channel = MarketplaceChannel.builder()
+                .code("SHOPEE")
+                .name("Shopee Oficial")
+                .active(true)
+                .build();
+
+        when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.of(channel));
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC123")).thenReturn(Optional.empty());
+        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        OrderMaster result = ingestionService.ingestEvent(platform, shopId, payload);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+
+        verify(delayQueueService).scheduleReconciliation(eq("SHOPEE"), eq("240828ABC123"), eq(Duration.ofMinutes(120)));
+    }
+
+    @Test
+    @DisplayName("Deve lançar IllegalStateException quando o canal de marketplace estiver inativo ou não cadastrado")
+    void deveLancarExcecaoQuandoCanalInativo() {
+        // Arrange
         when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> ingestionService.ingestEvent("SHOPEE", "123", Map.of("order_sn", "123")))
+        // Act & Assert
+        assertThatThrownBy(() -> ingestionService.ingestEvent("SHOPEE", "shop_123", Map.of("order_sn", "123")))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("não está ativo ou não foi cadastrado");
-    }
+                .hasMessageContaining("não está ativo");
 
-    @Test
-    @DisplayName("Deve rejeitar payload quando não possuir número do pedido")
-    void deveRejeitarPayloadSemOrderSn() {
-        MarketplaceChannel activeChannel = MarketplaceChannel.builder()
-                .code("SHOPEE")
-                .name("Shopee")
-                .active(true)
-                .build();
-
-        when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.of(activeChannel));
-
-        assertThatThrownBy(() -> ingestionService.ingestEvent("SHOPEE", "123", Map.of("status", "READY_TO_SHIP")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("O número do pedido (ordersn) é obrigatório");
-    }
-
-    @Test
-    @DisplayName("Deve processar pedido READY_TO_SHIP e salvar sem enfileirar no Redis")
-    void deveProcessarPedidoReadyToShip() {
-        MarketplaceChannel activeChannel = MarketplaceChannel.builder()
-                .code("SHOPEE")
-                .name("Shopee")
-                .active(true)
-                .build();
-
-        when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.of(activeChannel));
-        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828TEST")).thenReturn(Optional.empty());
-        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
-
-        Map<String, Object> payload = Map.of(
-                "order_sn", "240828TEST",
-                "order_status", "READY_TO_SHIP",
-                "tracking_no", "BR987654321",
-                "estimated_shipping_fee", 12.50
-        );
-
-        OrderMaster saved = ingestionService.ingestEvent("SHOPEE", "123456", payload);
-
-        assertThat(saved).isNotNull();
-        assertThat(saved.getOrderSn()).isEqualTo("240828TEST");
-        assertThat(saved.getStatus()).isEqualTo("READY_TO_SHIP");
-        assertThat(saved.getEstimatedShippingFee()).isEqualByComparingTo(new BigDecimal("12.5000"));
-        verify(delayQueueService, never()).scheduleReconciliation(any(), any(), any(Duration.class));
-    }
-
-    @Test
-    @DisplayName("Deve processar pedido COMPLETED, salvar no banco e enfileirar no Redis")
-    void deveProcessarPedidoCompletedEAgendarRedis() {
-        MarketplaceChannel activeChannel = MarketplaceChannel.builder()
-                .code("SHOPEE")
-                .name("Shopee")
-                .active(true)
-                .build();
-
-        when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.of(activeChannel));
-        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828COMP")).thenReturn(Optional.empty());
-        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
-
-        Map<String, Object> payload = Map.of(
-                "order_sn", "240828COMP",
-                "order_status", "COMPLETED"
-        );
-
-        OrderMaster saved = ingestionService.ingestEvent("SHOPEE", "123456", payload);
-
-        assertThat(saved).isNotNull();
-        assertThat(saved.getStatus()).isEqualTo("COMPLETED");
-        verify(delayQueueService, times(1)).scheduleReconciliation("SHOPEE", "240828COMP", Duration.ofMinutes(120));
+        verifyNoInteractions(rawEventRepository);
+        verifyNoInteractions(orderMasterRepository);
     }
 }

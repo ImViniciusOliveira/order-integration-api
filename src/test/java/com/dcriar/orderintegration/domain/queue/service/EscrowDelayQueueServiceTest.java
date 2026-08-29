@@ -12,15 +12,16 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 /**
- * Testes unitários para o serviço de fila de atraso de conciliação de Escrow usando Redis ZSet.
+ * Testes unitários para o serviço de fila de delay do Redis ({@link EscrowDelayQueueServiceImpl}).
  */
 @ExtendWith(MockitoExtension.class)
 class EscrowDelayQueueServiceTest {
@@ -38,7 +39,8 @@ class EscrowDelayQueueServiceTest {
         OrderIntegrationProperties properties = new OrderIntegrationProperties(
                 new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
-                new OrderIntegrationProperties.SecurityProperties("test-key")
+                new OrderIntegrationProperties.SecurityProperties("test-key"),
+                new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081"))
         );
 
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
@@ -48,34 +50,68 @@ class EscrowDelayQueueServiceTest {
     @Test
     @DisplayName("Deve agendar pedido no ZSet do Redis com timestamp futuro")
     void deveAgendarPedidoNoRedis() {
-        delayQueueService.scheduleReconciliation("SHOPEE", "240828XYZ", Duration.ofMinutes(120));
+        // Arrange
+        String platform = "SHOPEE";
+        String orderSn = "240828ABC123";
+        Duration delay = Duration.ofMinutes(120);
+        String expectedMember = "SHOPEE:240828ABC123";
 
-        verify(zSetOperations).add(eq("dcriar:orders:escrow_delay_queue"), eq("SHOPEE:240828XYZ"), anyDouble());
+        when(zSetOperations.add(eq("dcriar:orders:escrow_delay_queue"), eq(expectedMember), anyDouble()))
+                .thenReturn(Boolean.TRUE);
+
+        // Act
+        delayQueueService.scheduleReconciliation(platform, orderSn, delay);
+
+        // Assert
+        verify(zSetOperations, times(1)).add(
+                eq("dcriar:orders:escrow_delay_queue"),
+                eq(expectedMember),
+                doubleThat(score -> score >= Instant.now().plusSeconds(120 * 60L - 5).toEpochMilli())
+        );
     }
 
     @Test
-    @DisplayName("Deve buscar pedidos prontos do Redis")
+    @DisplayName("Deve buscar pedidos maduros prontos para conciliação até o timestamp atual")
     void deveBuscarPedidosProntos() {
-        lenient().when(zSetOperations.rangeByScore(eq("dcriar:orders:escrow_delay_queue"), eq(0.0), anyDouble(), eq(0L), eq(50L)))
-                .thenReturn(Set.of("SHOPEE:240828XYZ"));
+        // Arrange
+        int limit = 50;
+        Set<String> expectedReadyOrders = Set.of("SHOPEE:240828ABC123", "SHOPEE:240828XYZ999");
 
-        Set<String> readyOrders = delayQueueService.pollReadyOrders(50);
+        when(zSetOperations.rangeByScore(
+                eq("dcriar:orders:escrow_delay_queue"),
+                eq(0.0),
+                anyDouble(),
+                eq(0L),
+                eq((long) limit)
+        )).thenReturn(expectedReadyOrders);
 
-        assertThat(readyOrders).containsExactly("SHOPEE:240828XYZ");
+        // Act
+        Set<String> result = delayQueueService.pollReadyOrders(limit);
+
+        // Assert
+        assertThat(result).hasSize(2).containsExactlyInAnyOrderElementsOf(expectedReadyOrders);
+        verify(zSetOperations, times(1)).rangeByScore(
+                eq("dcriar:orders:escrow_delay_queue"),
+                eq(0.0),
+                doubleThat(score -> score <= Instant.now().plusSeconds(5).toEpochMilli()),
+                eq(0L),
+                eq((long) limit)
+        );
     }
 
     @Test
-    @DisplayName("Deve remover pedido do Redis com sucesso")
-    void deveRemoverPedidoDoRedis() {
-        delayQueueService.remove("SHOPEE", "240828XYZ");
+    @DisplayName("Deve remover member da fila do Redis após processamento")
+    void deveRemoverDaFila() {
+        // Arrange
+        String platform = "SHOPEE";
+        String orderSn = "240828ABC123";
+        String expectedMember = "SHOPEE:240828ABC123";
+        when(zSetOperations.remove("dcriar:orders:escrow_delay_queue", expectedMember)).thenReturn(1L);
 
-        verify(zSetOperations).remove("dcriar:orders:escrow_delay_queue", "SHOPEE:240828XYZ");
-    }
+        // Act
+        delayQueueService.remove(platform, orderSn);
 
-    @Test
-    @DisplayName("Deve construir member padronizado PLATFORM:ORDER_SN")
-    void deveConstruirMemberPadronizado() {
-        String member = EscrowDelayQueueService.buildQueueMember("shopee", "240828abc123");
-        assertThat(member).isEqualTo("SHOPEE:240828abc123");
+        // Assert
+        verify(zSetOperations, times(1)).remove("dcriar:orders:escrow_delay_queue", expectedMember);
     }
 }

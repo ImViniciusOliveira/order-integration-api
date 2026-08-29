@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -24,7 +25,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Testes unitários para validação das regras de conciliação de Escrow no EscrowReconciliationService.
+ * Suite de testes unitários para a implementação do serviço {@link EscrowReconciliationServiceImpl}.
  */
 @ExtendWith(MockitoExtension.class)
 class EscrowReconciliationServiceTest {
@@ -42,7 +43,8 @@ class EscrowReconciliationServiceTest {
         OrderIntegrationProperties properties = new OrderIntegrationProperties(
                 new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
-                new OrderIntegrationProperties.SecurityProperties("test-key")
+                new OrderIntegrationProperties.SecurityProperties("test-key"),
+                new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081"))
         );
 
         reconciliationService = new EscrowReconciliationServiceImpl(

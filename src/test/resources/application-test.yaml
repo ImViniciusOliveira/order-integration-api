@@ -17,3 +17,17 @@ spring:
 
 springdoc:
   enable-hateoas: false
+
+order-integration:
+  cors:
+    allowed-origins: http://localhost:8081
+  security:
+    internal-api-key: test-internal-key
+  redis:
+    escrow-queue-key: dcriar:orders:escrow_delay_queue
+  escrow:
+    delay-minutes: 120
+    retry-delay-minutes: 30
+    worker-interval-ms: 60000
+    batch-size: 50
+    max-retries: 5
