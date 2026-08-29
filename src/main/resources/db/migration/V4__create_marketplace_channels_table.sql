@@ -10,9 +10,6 @@ CREATE TABLE marketplace_channels (
 CREATE INDEX idx_marketplace_channels_code ON marketplace_channels (code);
 CREATE INDEX idx_marketplace_channels_active ON marketplace_channels (active);
 
--- Seed inicial de plataformas conhecidas
+-- Seed inicial da plataforma suportada atualmente
 INSERT INTO marketplace_channels (code, name, active) VALUES
-    ('SHOPEE', 'Shopee', true),
-    ('TIKTOK', 'TikTok Shop', true),
-    ('MERCADO_LIVRE', 'Mercado Livre', true),
-    ('AMAZON', 'Amazon', true);
+    ('SHOPEE', 'Shopee', true);

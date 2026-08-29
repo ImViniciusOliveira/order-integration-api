@@ -14,9 +14,17 @@ import java.util.Optional;
 public interface MarketplaceChannelRepository extends JpaRepository<MarketplaceChannel, Long> {
 
     /**
+     * Localiza um canal de marketplace através do seu código único.
+     *
+     * @param code o código do canal (ex: "SHOPEE")
+     * @return um {@link Optional} contendo o canal caso exista
+     */
+    Optional<MarketplaceChannel> findByCode(String code);
+
+    /**
      * Localiza um canal de marketplace ativo através do seu código único.
      *
-     * @param code o código do canal (ex: "SHOPEE", "TIKTOK")
+     * @param code o código do canal (ex: "SHOPEE")
      * @return um {@link Optional} contendo o canal caso exista e esteja ativo
      */
     Optional<MarketplaceChannel> findByCodeAndActiveTrue(String code);
