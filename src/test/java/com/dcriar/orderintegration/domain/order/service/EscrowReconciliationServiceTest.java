@@ -1,6 +1,9 @@
 package com.dcriar.orderintegration.domain.order.service;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
+import com.dcriar.orderintegration.domain.notification.service.OrderReconciliationNotificationService;
+import com.dcriar.orderintegration.domain.order.calculator.ShopeeCpfFeeCalculator;
+import com.dcriar.orderintegration.domain.order.calculator.mapper.FeeCalculationMapper;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.impl.EscrowReconciliationServiceImpl;
@@ -20,8 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -36,6 +38,9 @@ class EscrowReconciliationServiceTest {
     @Mock
     private EscrowDelayQueueService delayQueueService;
 
+    @Mock
+    private OrderReconciliationNotificationService notificationService;
+
     private EscrowReconciliationService reconciliationService;
 
     @BeforeEach
@@ -44,20 +49,31 @@ class EscrowReconciliationServiceTest {
                 new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
                 new OrderIntegrationProperties.SecurityProperties("test-key"),
-                new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081"))
+                new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081")),
+                new OrderIntegrationProperties.NotificationProperties("http://n8n-order:5678/webhook/v1/notifications/reconciled")
         );
 
         reconciliationService = new EscrowReconciliationServiceImpl(
                 orderMasterRepository,
                 delayQueueService,
-                properties
+                properties,
+                List.of(new ShopeeCpfFeeCalculator()),
+                new FeeCalculationMapper(),
+                notificationService
         );
     }
 
     @Test
-    @DisplayName("Deve conciliar pedidos pendentes com sucesso resgatados da fila")
+    @DisplayName("Deve conciliar pedidos pendentes com sucesso resgatados da fila e gravar auditoria financeira")
     void deveConciliarPedidosPendentesComSucesso() {
         // Arrange
+        Map<String, Object> item = Map.of(
+                "item_id", 123L,
+                "item_name", "Produto Teste",
+                "model_discounted_price", "100.00",
+                "model_quantity_purchased", 1
+        );
+
         OrderMaster order = OrderMaster.builder()
                 .id(1L)
                 .platform("SHOPEE")
@@ -65,7 +81,11 @@ class EscrowReconciliationServiceTest {
                 .orderSn("240828ABC")
                 .status("COMPLETED")
                 .reconciled(false)
-                .metadata(Map.of("escrow_amount", 85.50, "shipping_fee_borne_by_seller", 5.00))
+                .metadata(Map.of(
+                        "escrow_amount", 76.00,
+                        "shipping_fee_borne_by_seller", 0.00,
+                        "item_list", List.of(item)
+                ))
                 .build();
 
         when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("SHOPEE:240828ABC"));
@@ -78,10 +98,23 @@ class EscrowReconciliationServiceTest {
         // Assert
         assertThat(reconciledCount).isEqualTo(1);
         assertThat(order.isReconciled()).isTrue();
-        assertThat(order.getEscrowAmount()).isEqualByComparingTo(new BigDecimal("85.50"));
-        assertThat(order.getShippingFeeBorneBySeller()).isEqualByComparingTo(new BigDecimal("5.00"));
+        assertThat(order.getEscrowAmount()).isEqualByComparingTo(new BigDecimal("76.00"));
+        assertThat(order.getShippingFeeBorneBySeller()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(order.getMetadata()).containsKey("auditoria_financeira");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> auditoria = (Map<String, Object>) order.getMetadata().get("auditoria_financeira");
+        assertThat(auditoria).isNotNull();
+        assertThat(auditoria.get("versao_regra")).isEqualTo("SHOPEE_CPF_BR_2026");
+        assertThat(auditoria.get("has_divergence")).isEqualTo(false);
+
         verify(orderMasterRepository).save(order);
         verify(delayQueueService).remove("SHOPEE", "240828ABC");
+        verify(notificationService).notifyReconciliationCompleted(
+                eq(order),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("100.00")) == 0),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("76.00")) == 0)
+        );
     }
 
     @Test

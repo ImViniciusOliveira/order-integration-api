@@ -40,7 +40,8 @@ class EscrowDelayQueueServiceTest {
                 new OrderIntegrationProperties.RedisProperties("dcriar:orders:escrow_delay_queue"),
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
                 new OrderIntegrationProperties.SecurityProperties("test-key"),
-                new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081"))
+                new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081")),
+                new OrderIntegrationProperties.NotificationProperties("http://n8n-order:5678/webhook/v1/notifications/reconciled")
         );
 
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);

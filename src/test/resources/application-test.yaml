@@ -31,3 +31,5 @@ order-integration:
     worker-interval-ms: 60000
     batch-size: 50
     max-retries: 5
+  notification:
+    n8n-reconciliation-webhook-url: http://localhost:5678/webhook/v1/notifications/reconciled

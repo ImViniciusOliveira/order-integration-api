@@ -1,6 +1,10 @@
 package com.dcriar.orderintegration.domain.order.service.impl;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
+import com.dcriar.orderintegration.domain.notification.service.OrderReconciliationNotificationService;
+import com.dcriar.orderintegration.domain.order.calculator.MarketplaceFeeCalculator;
+import com.dcriar.orderintegration.domain.order.calculator.mapper.FeeCalculationMapper;
+import com.dcriar.orderintegration.domain.order.calculator.model.FeeCalculationResult;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.EscrowReconciliationService;
@@ -12,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -26,13 +32,18 @@ import java.util.Set;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class EscrowReconciliationServiceImpl implements EscrowReconciliationService {
 
     private final OrderMasterRepository orderMasterRepository;
     private final EscrowDelayQueueService delayQueueService;
     private final OrderIntegrationProperties properties;
+    private final List<MarketplaceFeeCalculator> feeCalculators;
+    private final FeeCalculationMapper feeCalculationMapper;
+    private final OrderReconciliationNotificationService notificationService;
 
     @Override
+    @Transactional
     public int reconcilePendingOrders() {
         int batchSize = (properties != null && properties.escrow() != null)
                 ? properties.escrow().batchSize()
@@ -79,8 +90,8 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
             return false;
         }
 
-        String normalizedPlatform = platform.trim().toUpperCase();
-        String normalizedOrderSn = orderSn.trim();
+        String normalizedPlatform = platform.toUpperCase();
+        String normalizedOrderSn = orderSn;
 
         Optional<OrderMaster> orderOptional = orderMasterRepository.findByPlatformAndOrderSn(normalizedPlatform, normalizedOrderSn);
         if (orderOptional.isEmpty()) {
@@ -102,13 +113,41 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
         EscrowSettlementData settlementData = extractSettlementData(order);
 
         if (settlementData.isAvailable()) {
-            // Cenário A: Extrato contábil liberado com sucesso
+            BigDecimal subtotalCalculated = BigDecimal.ZERO;
+
+            // Cenário A: Extrato contábil liberado com sucesso -> Executar prova real matemática de taxas
+            if (feeCalculators != null && !feeCalculators.isEmpty()) {
+                Optional<MarketplaceFeeCalculator> calculatorOpt = feeCalculators.stream()
+                        .filter(c -> c.supports(normalizedPlatform))
+                        .findFirst();
+
+                if (calculatorOpt.isPresent()) {
+                    FeeCalculationResult feeResult = calculatorOpt.get().calculate(
+                            order,
+                            settlementData.escrowAmount(),
+                            settlementData.shippingFeeBorneBySeller()
+                    );
+                    subtotalCalculated = feeResult.subtotalItems();
+                    Map<String, Object> updatedMetadata = (order.getMetadata() != null)
+                            ? new LinkedHashMap<>(order.getMetadata())
+                            : new LinkedHashMap<>();
+                    updatedMetadata.put("auditoria_financeira", feeCalculationMapper.toMap(feeResult));
+                    order.setMetadata(updatedMetadata);
+                }
+            }
+
             order.conciliarEscrow(settlementData.escrowAmount(), settlementData.shippingFeeBorneBySeller());
-            orderMasterRepository.save(order);
+            OrderMaster savedOrder = orderMasterRepository.save(order);
             delayQueueService.remove(normalizedPlatform, normalizedOrderSn);
 
             log.info("Pedido '{}:{}' conciliado com sucesso: repasse líquido={}, frete cobrado do vendedor={}",
                     normalizedPlatform, normalizedOrderSn, settlementData.escrowAmount(), settlementData.shippingFeeBorneBySeller());
+
+            // Disparo de notificação externa (n8n / Telegram)
+            if (notificationService != null) {
+                notificationService.notifyReconciliationCompleted(savedOrder, subtotalCalculated, settlementData.escrowAmount());
+            }
+
             return true;
         } else {
             // Cenário B: Extrato contábil ainda não liberado pela plataforma -> Reagendamento com retry
@@ -158,7 +197,7 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
             Object val = map.get(key);
             if (val != null) {
                 try {
-                    return new BigDecimal(val.toString().trim());
+                    return new BigDecimal(val.toString());
                 } catch (NumberFormatException ignored) {
                 }
             }

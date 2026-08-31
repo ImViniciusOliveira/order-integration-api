@@ -8,17 +8,19 @@ import java.util.List;
  * Propriedades fortemente tipadas de configuração da aplicação carregadas do {@code application.yaml}
  * ou sobrescritas por variáveis de ambiente.
  *
- * @param redis    configurações de chave e infraestrutura do Redis
- * @param escrow   configurações de conciliação financeira de Escrow
- * @param security configurações de segurança e chaves de autenticação interna
- * @param cors     configurações de origens permitidas para requisições cross-origin (CORS)
+ * @param redis        configurações de chave e infraestrutura do Redis
+ * @param escrow       configurações de conciliação financeira de Escrow
+ * @param security     configurações de segurança e chaves de autenticação interna
+ * @param cors         configurações de origens permitidas para requisições cross-origin (CORS)
+ * @param notification configurações de webhook e integração de notificações externas (ex: n8n)
  */
 @ConfigurationProperties(prefix = "order-integration")
 public record OrderIntegrationProperties(
         RedisProperties redis,
         EscrowProperties escrow,
         SecurityProperties security,
-        CorsProperties cors
+        CorsProperties cors,
+        NotificationProperties notification
 ) {
 
     /**
@@ -66,6 +68,16 @@ public record OrderIntegrationProperties(
      */
     public record CorsProperties(
             List<String> allowedOrigins
+    ) {
+    }
+
+    /**
+     * Configurações de integração para disparo de notificações externas.
+     *
+     * @param n8nReconciliationWebhookUrl URL de webhook do n8n para notificação de conciliação financeira
+     */
+    public record NotificationProperties(
+            String n8nReconciliationWebhookUrl
     ) {
     }
 }

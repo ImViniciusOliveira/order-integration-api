@@ -86,6 +86,8 @@ services:
     build: .
     container_name: order-integration-api
     restart: no
+    env_file:
+      - .env.dev
     ports:
       - "8081:8080"
     environment:
@@ -101,6 +103,7 @@ services:
       - ESCROW_REDIS_QUEUE_KEY=${ESCROW_REDIS_QUEUE_KEY}
       - ESCROW_DELAY_MINUTES=${ESCROW_DELAY_MINUTES}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - N8N_RECONCILIATION_WEBHOOK_URL=${N8N_RECONCILIATION_WEBHOOK_URL}
     networks:
       - order-integration-network
     depends_on:
