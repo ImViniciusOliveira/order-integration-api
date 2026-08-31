@@ -112,10 +112,14 @@ public class MarketplaceIngestionServiceImpl implements MarketplaceIngestionServ
         log.info("Pedido mestre unificado persistido no PostgreSQL com sucesso: id={}, status={}, reconciliado={}",
                 savedOrder.getId(), savedOrder.getStatus(), savedOrder.isReconciled());
 
-        // 8. ORDEM OBRIGATÓRIA - PASSO 2: Agendar no Redis apenas APÓS sucesso no banco se status for COMPLETED
+        // 8. ORDEM OBRIGATÓRIA - PASSO 2: Agendar ou desarmar no Redis
         if ("COMPLETED".equalsIgnoreCase(savedOrder.getStatus()) && !savedOrder.isReconciled()) {
             Duration delay = resolveEscrowDelay();
             delayQueueService.scheduleReconciliation(savedOrder.getPlatform(), savedOrder.getOrderSn(), delay);
+        } else if ("CANCELLED".equalsIgnoreCase(savedOrder.getStatus())) {
+            delayQueueService.remove(savedOrder.getPlatform(), savedOrder.getOrderSn());
+            log.info("Pedido cancelado '{}:{}'. Fila de conciliação do Redis desarmada com sucesso.",
+                    savedOrder.getPlatform(), savedOrder.getOrderSn());
         }
 
         return savedOrder;

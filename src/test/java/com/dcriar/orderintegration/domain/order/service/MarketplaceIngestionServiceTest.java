@@ -142,6 +142,37 @@ class MarketplaceIngestionServiceTest {
     }
 
     @Test
+    @DisplayName("Deve desarmar e remover pedido do Redis quando o status do pedido for CANCELLED")
+    void deveDesarmarFilaDoRedisQuandoStatusCancelled() {
+        // Arrange
+        String platform = "SHOPEE";
+        String shopId = "shop_123";
+        Map<String, Object> payload = Map.of(
+                "order_sn", "240828ABC123",
+                "order_status", "CANCELLED"
+        );
+
+        MarketplaceChannel channel = MarketplaceChannel.builder()
+                .code("SHOPEE")
+                .name("Shopee Oficial")
+                .active(true)
+                .build();
+
+        when(channelRepository.findByCodeAndActiveTrue("SHOPEE")).thenReturn(Optional.of(channel));
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC123")).thenReturn(Optional.empty());
+        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        OrderMaster result = ingestionService.ingestEvent(platform, shopId, payload);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getStatus()).isEqualTo("CANCELLED");
+
+        verify(delayQueueService).remove(eq("SHOPEE"), eq("240828ABC123"));
+    }
+
+    @Test
     @DisplayName("Deve lançar IllegalStateException quando o canal de marketplace estiver inativo ou não cadastrado")
     void deveLancarExcecaoQuandoCanalInativo() {
         // Arrange
