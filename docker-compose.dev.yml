@@ -45,6 +45,47 @@ services:
     networks:
       - order-integration-network
 
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: order-integration-redis-insight
+    restart: no
+    ports:
+      - "5540:5540"
+    volumes:
+      - redis_insight_data:/data
+    networks:
+      - order-integration-network
+    depends_on:
+      - redis-order
+
+  prometheus-order:
+    image: prom/prometheus:latest
+    container_name: order-integration-prometheus
+    restart: no
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_order_data:/prometheus
+    networks:
+      - order-integration-network
+
+  grafana-order:
+    image: grafana/grafana:latest
+    container_name: order-integration-grafana
+    restart: no
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_order_data:/var/lib/grafana
+    networks:
+      - order-integration-network
+    depends_on:
+      - prometheus-order
+
   n8n-order:
     image: n8nio/n8n:latest
     container_name: order-integration-n8n
@@ -117,6 +158,9 @@ volumes:
   n8n_order_data:
   mongodb_order_data:
   redis_order_data:
+  redis_insight_data:
+  prometheus_order_data:
+  grafana_order_data:
 
 networks:
   order-integration-network:
