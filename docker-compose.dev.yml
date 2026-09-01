@@ -123,6 +123,21 @@ services:
     depends_on:
       - n8n-order
 
+  sonarqube-order:
+    image: sonarqube:lts-community
+    container_name: order-integration-sonarqube
+    restart: no
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - order-integration-network
+
   order-api:
     build: .
     container_name: order-integration-api
@@ -161,6 +176,9 @@ volumes:
   redis_insight_data:
   prometheus_order_data:
   grafana_order_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
 
 networks:
   order-integration-network:
