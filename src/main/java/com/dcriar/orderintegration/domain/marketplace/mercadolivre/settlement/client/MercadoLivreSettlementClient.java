@@ -33,7 +33,7 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
      * Cria o client do Mercado Livre.
      *
      * @param credentialService serviço de credenciais
-     * @param properties        propriedades da integração
+     * @param properties        propriedades globais da aplicação
      * @param responseMapper    mapper das respostas externas
      */
     public MercadoLivreSettlementClient(
@@ -41,19 +41,10 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
             OrderIntegrationProperties properties,
             MercadoLivreSettlementResponseMapper responseMapper
     ) {
-        this(credentialService, properties.mercadoLivre(), responseMapper, RestClient.builder());
-    }
-
-    MercadoLivreSettlementClient(
-            MercadoLivreCredentialService credentialService,
-            OrderIntegrationProperties.MercadoLivreProperties properties,
-            MercadoLivreSettlementResponseMapper responseMapper,
-            RestClient.Builder restClientBuilder
-    ) {
         this.credentialService = credentialService;
-        this.properties = properties;
+        this.properties = properties.mercadoLivre();
         this.responseMapper = responseMapper;
-        this.restClient = restClientBuilder.build();
+        this.restClient = RestClient.builder().build();
     }
 
     @Override
