@@ -35,16 +35,18 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
      * @param credentialService serviço de credenciais
      * @param properties        propriedades globais da aplicação
      * @param responseMapper    mapper das respostas externas
+     * @param restClientBuilder  builder HTTP global da aplicação
      */
     public MercadoLivreSettlementClient(
             MercadoLivreCredentialService credentialService,
             OrderIntegrationProperties properties,
-            MercadoLivreSettlementResponseMapper responseMapper
+            MercadoLivreSettlementResponseMapper responseMapper,
+            RestClient.Builder restClientBuilder
     ) {
         this.credentialService = credentialService;
         this.properties = properties.mercadoLivre();
         this.responseMapper = responseMapper;
-        this.restClient = RestClient.builder().build();
+        this.restClient = restClientBuilder.build();
     }
 
     @Override

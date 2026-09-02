@@ -44,18 +44,20 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
      * @param properties        propriedades globais da aplicação
      * @param requestSigner     gerador de assinatura Shopee
      * @param responseMapper    conversor da resposta Shopee
+     * @param restClientBuilder  builder HTTP global da aplicação
      */
     public ShopeeSettlementClient(
             ShopeeCredentialService credentialService,
             OrderIntegrationProperties properties,
             ShopeeRequestSigner requestSigner,
-            ShopeeSettlementResponseMapper responseMapper
+            ShopeeSettlementResponseMapper responseMapper,
+            RestClient.Builder restClientBuilder
     ) {
         this.credentialService = credentialService;
         this.properties = properties.shopee();
         this.requestSigner = requestSigner;
         this.responseMapper = responseMapper;
-        this.restClient = RestClient.builder().build();
+        this.restClient = restClientBuilder.build();
     }
 
     @Override

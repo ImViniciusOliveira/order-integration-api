@@ -5,12 +5,12 @@ import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.se
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.mapper.MercadoLivreSettlementResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestClient;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -56,7 +56,8 @@ class MercadoLivreSettlementClientTest {
         return new MercadoLivreSettlementClient(
                 mock(MercadoLivreCredentialService.class),
                 properties,
-                new MercadoLivreSettlementResponseMapper()
+                new MercadoLivreSettlementResponseMapper(),
+                RestClient.builder()
         );
     }
 }
