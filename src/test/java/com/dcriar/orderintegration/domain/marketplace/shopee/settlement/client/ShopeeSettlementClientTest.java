@@ -2,6 +2,8 @@ package com.dcriar.orderintegration.domain.marketplace.shopee.settlement.client;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.marketplace.shopee.credential.service.ShopeeCredentialService;
+import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.mapper.ShopeeSettlementResponseMapper;
+import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.signer.ShopeeRequestSigner;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

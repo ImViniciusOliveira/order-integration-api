@@ -5,7 +5,7 @@ import com.dcriar.orderintegration.domain.channel.entity.MarketplaceChannel;
 import com.dcriar.orderintegration.domain.channel.repository.MarketplaceChannelRepository;
 import com.dcriar.orderintegration.domain.order.entity.MarketplaceRawEvent;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
-import com.dcriar.orderintegration.domain.order.processor.ShopeeOrderProcessor;
+import com.dcriar.orderintegration.domain.marketplace.shopee.processor.ShopeeOrderProcessor;
 import com.dcriar.orderintegration.domain.order.repository.MarketplaceRawEventRepository;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.impl.MarketplaceIngestionServiceImpl;

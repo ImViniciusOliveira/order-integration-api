@@ -2,9 +2,9 @@ package com.dcriar.orderintegration.domain.order.service.impl;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.notification.service.OrderReconciliationNotificationService;
-import com.dcriar.orderintegration.domain.order.calculator.MarketplaceFeeCalculator;
-import com.dcriar.orderintegration.domain.order.calculator.mapper.FeeCalculationMapper;
-import com.dcriar.orderintegration.domain.order.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.MarketplaceFeeCalculator;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.mapper.FeeCalculationMapper;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.EscrowReconciliationService;
