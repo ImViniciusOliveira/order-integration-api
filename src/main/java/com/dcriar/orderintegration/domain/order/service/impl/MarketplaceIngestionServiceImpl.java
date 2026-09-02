@@ -35,6 +35,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MarketplaceIngestionServiceImpl implements MarketplaceIngestionService {
 
     private final MarketplaceChannelRepository channelRepository;
@@ -51,7 +52,7 @@ public class MarketplaceIngestionServiceImpl implements MarketplaceIngestionServ
             throw new IllegalArgumentException("O código da plataforma é obrigatório para ingestão");
         }
 
-        String normalizedPlatform = platform.trim().toUpperCase();
+        String normalizedPlatform = platform.toUpperCase();
 
         // 1. Validar se o canal está cadastrado e ativo no banco
         MarketplaceChannel channel = channelRepository.findByCodeAndActiveTrue(normalizedPlatform)

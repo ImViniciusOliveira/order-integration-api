@@ -26,7 +26,7 @@ public final class OrderMasterSpecifications {
             if (platform == null || platform.isBlank()) {
                 return cb.conjunction();
             }
-            return cb.equal(cb.upper(root.get("platform")), platform.trim().toUpperCase());
+            return cb.equal(cb.upper(root.get("platform")), platform.toUpperCase());
         };
     }
 
@@ -41,7 +41,7 @@ public final class OrderMasterSpecifications {
             if (shopId == null || shopId.isBlank()) {
                 return cb.conjunction();
             }
-            return cb.equal(root.get("shopId"), shopId.trim());
+            return cb.equal(root.get("shopId"), shopId);
         };
     }
 
@@ -56,7 +56,7 @@ public final class OrderMasterSpecifications {
             if (status == null || status.isBlank()) {
                 return cb.conjunction();
             }
-            return cb.equal(cb.upper(root.get("status")), status.trim().toUpperCase());
+            return cb.equal(cb.upper(root.get("status")), status.toUpperCase());
         };
     }
 

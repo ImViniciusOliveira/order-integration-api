@@ -238,7 +238,7 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
             Object val = map.get(key);
             if (val != null) {
                 try {
-                    return Long.valueOf(val.toString().trim());
+                    return Long.valueOf(val.toString());
                 } catch (NumberFormatException ignored) {
                 }
             }
@@ -250,7 +250,7 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
         for (String key : keys) {
             Object val = map.get(key);
             if (val != null && !val.toString().isBlank()) {
-                return val.toString().trim();
+                return val.toString();
             }
         }
         return null;
@@ -261,7 +261,7 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
             Object val = map.get(key);
             if (val != null) {
                 try {
-                    return Integer.parseInt(val.toString().trim());
+                    return Integer.parseInt(val.toString());
                 } catch (NumberFormatException ignored) {
                 }
             }
@@ -274,7 +274,7 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
             Object val = map.get(key);
             if (val != null) {
                 try {
-                    return new BigDecimal(val.toString().trim());
+                    return new BigDecimal(val.toString());
                 } catch (NumberFormatException ignored) {
                 }
             }

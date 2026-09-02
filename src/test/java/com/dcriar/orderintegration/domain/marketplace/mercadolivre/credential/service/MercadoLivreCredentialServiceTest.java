@@ -36,7 +36,7 @@ class MercadoLivreCredentialServiceTest {
                 .build();
         when(repository.findByClientId("app-123")).thenReturn(Optional.of(credential));
 
-        assertThat(service.getCredential(" app-123 ")).isSameAs(credential);
+        assertThat(service.getCredential("app-123")).isSameAs(credential);
     }
 
     @Test

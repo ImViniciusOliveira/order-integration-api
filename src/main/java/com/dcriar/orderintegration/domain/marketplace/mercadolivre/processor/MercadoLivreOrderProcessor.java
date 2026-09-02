@@ -72,7 +72,7 @@ public class MercadoLivreOrderProcessor implements MarketplaceOrderProcessor {
         for (String key : keys) {
             Object val = map.get(key);
             if (val != null && !val.toString().isBlank()) {
-                return val.toString().trim();
+                return val.toString();
             }
         }
         return null;
@@ -83,7 +83,7 @@ public class MercadoLivreOrderProcessor implements MarketplaceOrderProcessor {
             Object val = map.get(key);
             if (val != null) {
                 try {
-                    return new BigDecimal(val.toString().trim());
+                    return new BigDecimal(val.toString());
                 } catch (NumberFormatException e) {
                     log.warn("Falha ao converter valor '{}' para BigDecimal na chave '{}'", val, key);
                 }

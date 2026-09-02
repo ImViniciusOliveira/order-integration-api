@@ -6,6 +6,7 @@ import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.se
 import com.dcriar.orderintegration.exception.custom.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
@@ -14,6 +15,7 @@ import java.time.Instant;
  */
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MercadoLivreCredentialServiceImpl implements MercadoLivreCredentialService {
 
     private static final String PLATFORM_CODE = "mercadolivre";
@@ -23,7 +25,7 @@ public class MercadoLivreCredentialServiceImpl implements MercadoLivreCredential
     @Override
     public MercadoLivreCredentialDocument getCredential(String accountId) {
         if (accountId != null && !accountId.isBlank() && !isDefaultAccount(accountId)) {
-            String normalizedAccountId = accountId.trim();
+            String normalizedAccountId = accountId;
             return repository.findBySellerId(normalizedAccountId)
                     .or(() -> repository.findByClientId(normalizedAccountId))
                     .orElseThrow(() -> new ResourceNotFoundException("CredencialMercadoLivreConta", accountId));
@@ -34,6 +36,7 @@ public class MercadoLivreCredentialServiceImpl implements MercadoLivreCredential
     }
 
     @Override
+    @Transactional
     public MercadoLivreCredentialDocument updateTokens(
             MercadoLivreCredentialDocument credential,
             String accessToken,
@@ -48,6 +51,6 @@ public class MercadoLivreCredentialServiceImpl implements MercadoLivreCredential
     }
 
     private boolean isDefaultAccount(String accountId) {
-        return "default".equalsIgnoreCase(accountId.trim());
+        return "default".equalsIgnoreCase(accountId);
     }
 }

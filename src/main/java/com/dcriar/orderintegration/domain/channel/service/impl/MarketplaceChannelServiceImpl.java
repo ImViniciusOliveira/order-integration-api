@@ -38,7 +38,7 @@ public class MarketplaceChannelServiceImpl implements MarketplaceChannelService 
         if (code == null || code.isBlank()) {
             throw new ResourceNotFoundException("Código de canal inválido ou vazio.");
         }
-        String sanitizedCode = code.trim().toUpperCase();
+        String sanitizedCode = code.toUpperCase();
         return channelRepository.findByCode(sanitizedCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Canal de marketplace não encontrado com o código: " + sanitizedCode));
     }

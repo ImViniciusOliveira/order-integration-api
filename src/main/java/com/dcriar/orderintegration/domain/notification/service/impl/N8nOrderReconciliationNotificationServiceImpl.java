@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ import java.util.Map;
  */
 @Slf4j
 @Service
+@Transactional(readOnly = true)
 public class N8nOrderReconciliationNotificationServiceImpl implements OrderReconciliationNotificationService {
 
     private final OrderIntegrationProperties properties;

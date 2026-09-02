@@ -53,6 +53,6 @@ public interface EscrowDelayQueueService {
         if (platform == null || orderSn == null) {
             throw new IllegalArgumentException("Plataforma e orderSn não podem ser nulos para gerar member de fila");
         }
-        return platform.trim().toUpperCase() + ":" + orderSn.trim();
+        return platform.toUpperCase() + ":" + orderSn;
     }
 }

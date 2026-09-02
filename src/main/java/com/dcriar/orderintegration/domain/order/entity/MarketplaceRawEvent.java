@@ -77,7 +77,7 @@ public class MarketplaceRawEvent extends AuditableEntity {
         }
 
         return MarketplaceRawEvent.builder()
-                .platform(platform.trim().toUpperCase())
+                .platform(platform.toUpperCase())
                 .shopId(shopId)
                 .orderSn(orderSn)
                 .eventType(eventType)

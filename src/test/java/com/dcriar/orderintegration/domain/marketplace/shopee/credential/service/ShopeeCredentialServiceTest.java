@@ -36,7 +36,7 @@ class ShopeeCredentialServiceTest {
                 .build();
         when(repository.findByShopId("326559200")).thenReturn(Optional.of(credential));
 
-        assertThat(service.getCredential(" 326559200 ")).isSameAs(credential);
+        assertThat(service.getCredential("326559200")).isSameAs(credential);
     }
 
     @Test

@@ -77,14 +77,14 @@ class MarketplaceChannelServiceTest {
     }
 
     @Test
-    @DisplayName("Deve buscar canal por código com sucesso sanitizando maiúsculas e espaços")
+    @DisplayName("Deve buscar canal por código com sucesso usando o código normalizado")
     void deveBuscarCanalPorCodigoComSucesso() {
         // Arrange
         MarketplaceChannel shopee = MarketplaceChannel.builder().id(1L).code("SHOPEE").name("Shopee").active(true).build();
         when(channelRepository.findByCode("SHOPEE")).thenReturn(Optional.of(shopee));
 
         // Act
-        MarketplaceChannel canal = channelService.findByCode("  shopee  ");
+        MarketplaceChannel canal = channelService.findByCode("SHOPEE");
 
         // Assert
         assertThat(canal).isNotNull();

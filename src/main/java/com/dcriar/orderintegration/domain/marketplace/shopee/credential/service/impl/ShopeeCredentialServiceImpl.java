@@ -6,12 +6,14 @@ import com.dcriar.orderintegration.domain.marketplace.shopee.credential.service.
 import com.dcriar.orderintegration.exception.custom.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implementação do acesso às credenciais Shopee persistidas no MongoDB.
  */
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ShopeeCredentialServiceImpl implements ShopeeCredentialService {
 
     private final ShopeeCredentialMongoRepository repository;
@@ -22,7 +24,7 @@ public class ShopeeCredentialServiceImpl implements ShopeeCredentialService {
             throw new IllegalArgumentException("O shop_id da Shopee é obrigatório para consulta de credenciais");
         }
 
-        return repository.findByShopId(shopId.trim())
+        return repository.findByShopId(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("CredencialShopee", shopId));
     }
 }
