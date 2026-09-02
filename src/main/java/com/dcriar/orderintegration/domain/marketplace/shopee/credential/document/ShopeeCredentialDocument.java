@@ -1,4 +1,4 @@
-package com.dcriar.orderintegration.domain.credential.document;
+package com.dcriar.orderintegration.domain.marketplace.shopee.credential.document;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 /**
- * Documento de credenciais e chaves OAuth2 da conta Mercado Livre / Mercado Pago persistidas no MongoDB.
+ * Documento MongoDB com as credenciais e chaves de integração de uma loja Shopee.
  */
 @Getter
 @Setter
@@ -18,19 +18,25 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "credenciais_lojas")
-public class MercadoLivreCredentialDocument {
+public class ShopeeCredentialDocument {
 
     @Id
     private String id;
 
+    @Field("shop_id")
+    private String shopId;
+
     @Field("plataforma")
     private String plataforma;
 
-    @Field("client_id")
-    private String clientId;
+    @Field("partner_id")
+    private String partnerId;
 
-    @Field("client_secret")
-    private String clientSecret;
+    @Field("live_partner_key")
+    private String livePartnerKey;
+
+    @Field("live_push_partner_key")
+    private String livePushPartnerKey;
 
     @Field("live_access_token")
     private String liveAccessToken;
