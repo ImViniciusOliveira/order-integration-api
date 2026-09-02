@@ -9,25 +9,19 @@ import com.dcriar.orderintegration.domain.order.service.MarketplaceSettlementCli
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * Client HTTP da Shopee para consulta do detalhe financeiro de escrow.
  * <p>
- * Converte a resposta específica da Shopee em {@link MarketplaceSettlement}, deixando
- * as regras matemáticas sob responsabilidade do calculador financeiro da plataforma.
+ * Coordena credenciais, assinatura, chamada HTTP e conversão da resposta,
+ * mantendo essas responsabilidades em componentes especializados.
  */
 @Slf4j
 @Component
@@ -37,20 +31,28 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
 
     private final ShopeeCredentialService credentialService;
     private final OrderIntegrationProperties.ShopeeProperties properties;
+    private final ShopeeRequestSigner requestSigner;
+    private final ShopeeSettlementResponseMapper responseMapper;
     private final RestClient restClient;
 
     /**
-     * Cria o client da Shopee com as credenciais e configurações tipadas da aplicação.
+     * Cria o client Shopee com suas dependências de integração.
      *
      * @param credentialService serviço de credenciais Shopee
-     * @param properties        configurações HTTP da Shopee
+     * @param properties        propriedades globais da aplicação
+     * @param requestSigner     gerador de assinatura Shopee
+     * @param responseMapper    conversor da resposta Shopee
      */
     public ShopeeSettlementClient(
             ShopeeCredentialService credentialService,
-            OrderIntegrationProperties properties
+            OrderIntegrationProperties properties,
+            ShopeeRequestSigner requestSigner,
+            ShopeeSettlementResponseMapper responseMapper
     ) {
         this.credentialService = credentialService;
         this.properties = properties.shopee();
+        this.requestSigner = requestSigner;
+        this.responseMapper = responseMapper;
         this.restClient = RestClient.builder().build();
     }
 
@@ -67,7 +69,7 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
         validateCredential(credential);
 
         long timestamp = Instant.now().getEpochSecond();
-        String signature = generateSignature(
+        String signature = requestSigner.sign(
                 credential.getPartnerId(),
                 properties.escrowPath(),
                 timestamp,
@@ -76,7 +78,6 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
                 credential.getLivePartnerKey()
         );
 
-        Map<String, Object> body;
         try {
             String uri = UriComponentsBuilder.fromUriString(properties.baseUrl())
                     .path(properties.escrowPath())
@@ -90,106 +91,46 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
                     .encode()
                     .toUriString();
 
-            body = restClient.get()
+            Map<String, Object> body = restClient.get()
                     .uri(uri)
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(Map.class);
+            return responseMapper.map(accountId, orderId, body);
         } catch (RestClientResponseException exception) {
             SettlementStatus status = exception.getStatusCode().is5xxServerError()
                     || exception.getStatusCode().value() == 429
                     ? SettlementStatus.RETRYABLE_ERROR
                     : SettlementStatus.PERMANENT_ERROR;
-            return unavailableSettlement(accountId, orderId, status,
+            return unavailable(accountId, orderId, status,
                     "Shopee respondeu HTTP " + exception.getStatusCode().value());
         } catch (ResourceAccessException exception) {
-            return unavailableSettlement(accountId, orderId, SettlementStatus.RETRYABLE_ERROR,
+            return unavailable(accountId, orderId, SettlementStatus.RETRYABLE_ERROR,
                     "Falha de comunicação com a Shopee");
         }
-
-        return mapResponse(accountId, orderId, body);
     }
 
-    static String generateSignature(
-            String partnerId,
-            String apiPath,
-            long timestamp,
-            String accessToken,
-            String shopId,
-            String partnerKey
-    ) {
-        try {
-            String baseString = partnerId + apiPath + timestamp + accessToken + shopId;
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(partnerKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal(baseString.getBytes(StandardCharsets.UTF_8));
-            StringBuilder signature = new StringBuilder(digest.length * 2);
-            for (byte value : digest) {
-                signature.append(String.format("%02x", value));
-            }
-            return signature.toString();
-        } catch (Exception exception) {
-            throw new IllegalStateException("Não foi possível gerar a assinatura da Shopee", exception);
-        }
-    }
-
-    private MarketplaceSettlement mapResponse(String accountId, String orderId, Map<String, Object> body) {
-        Map<String, Object> response = mapValue(body, "response");
-        if (response == null || response.isEmpty()) {
-            return unavailableSettlement(accountId, orderId, SettlementStatus.PENDING,
-                    "Detalhes de escrow ainda não disponíveis");
-        }
-
-        BigDecimal netAmount = decimalValue(response, "escrow_amount");
-        if (netAmount == null || netAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            return unavailableSettlement(accountId, orderId, SettlementStatus.PENDING,
-                    "Escrow ainda não liberado pela Shopee");
-        }
-
-        Map<String, Object> incomeDetails = mapValue(response, "income_details");
-        BigDecimal shippingFee = decimalValue(incomeDetails, "shipping_fee_borne_by_seller");
-        Map<String, Object> financialDetails = new LinkedHashMap<>(response);
-        if (incomeDetails != null) {
-            financialDetails.put("income_details", incomeDetails);
-        }
-
-        return new MarketplaceSettlement(
-                SettlementStatus.AVAILABLE,
-                PLATFORM_CODE,
-                orderId,
-                accountId,
-                decimalValue(response, "buyer_total_amount"),
-                netAmount,
-                decimalValue(response, "commission_fee"),
-                decimalValue(response, "transaction_fee"),
-                shippingFee != null ? shippingFee : BigDecimal.ZERO,
-                null,
-                financialDetails,
-                OffsetDateTime.now(),
-                null
-        );
-    }
-
-    private MarketplaceSettlement unavailableSettlement(
+    private MarketplaceSettlement unavailable(
             String accountId,
             String orderId,
             SettlementStatus status,
             String reason
     ) {
+        MarketplaceSettlement settlement = responseMapper.unavailable(accountId, orderId, reason);
         return new MarketplaceSettlement(
                 status,
-                PLATFORM_CODE,
-                orderId,
-                accountId,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                Map.of(),
-                OffsetDateTime.now(),
-                reason
+                settlement.platform(),
+                settlement.orderId(),
+                settlement.accountId(),
+                settlement.grossAmount(),
+                settlement.netAmount(),
+                settlement.commissionAmount(),
+                settlement.transactionFee(),
+                settlement.shippingFee(),
+                settlement.externalFees(),
+                settlement.financialDetails(),
+                settlement.queriedAt(),
+                settlement.pendingReason()
         );
     }
 
@@ -208,36 +149,6 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
                 || credential.getLiveAccessToken() == null || credential.getLiveAccessToken().isBlank()
                 || credential.getShopId() == null || credential.getShopId().isBlank()) {
             throw new IllegalStateException("Credencial Shopee incompleta para consulta de escrow");
-        }
-    }
-
-    private Map<String, Object> mapValue(Map<String, Object> source, String key) {
-        if (source == null) {
-            return Map.of();
-        }
-        Object value = source.get(key);
-        return value instanceof Map<?, ?> map ? castMap(map) : Map.of();
-    }
-
-    private Map<String, Object> castMap(Map<?, ?> source) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        source.forEach((key, value) -> result.put(String.valueOf(key), value));
-        return result;
-    }
-
-    private BigDecimal decimalValue(Map<String, Object> source, String key) {
-        if (source == null) {
-            return null;
-        }
-        Object value = source.get(key);
-        if (value == null) {
-            return null;
-        }
-        try {
-            return new BigDecimal(value.toString());
-        } catch (NumberFormatException exception) {
-            log.warn("Valor financeiro inválido na resposta Shopee para o campo '{}'", key);
-            return null;
         }
     }
 }

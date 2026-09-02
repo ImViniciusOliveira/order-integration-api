@@ -9,6 +9,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 /**
  * Testes unitários do client financeiro da Shopee.
@@ -23,21 +24,6 @@ class ShopeeSettlementClientTest {
         assertThat(client.supports("SHOPEE")).isTrue();
         assertThat(client.supports("shopee")).isTrue();
         assertThat(client.supports("MERCADOLIVRE")).isFalse();
-    }
-
-    @Test
-    @DisplayName("Deve gerar assinatura HMAC-SHA256 no formato hexadecimal")
-    void deveGerarAssinaturaHmac() {
-        String signature = ShopeeSettlementClient.generateSignature(
-                "partner",
-                "/api/v2/payment/get_escrow_detail",
-                1_700_000_000L,
-                "access",
-                "shop",
-                "secret"
-        );
-
-        assertThat(signature).hasSize(64).matches("[0-9a-f]+");
     }
 
     @Test
@@ -62,6 +48,11 @@ class ShopeeSettlementClientTest {
                         "/api/v2/payment/get_escrow_detail"
                 )
         );
-        return new ShopeeSettlementClient(null, properties);
+        return new ShopeeSettlementClient(
+                mock(ShopeeCredentialService.class),
+                properties,
+                new ShopeeRequestSigner(),
+                new ShopeeSettlementResponseMapper()
+        );
     }
 }
