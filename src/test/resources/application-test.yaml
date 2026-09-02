@@ -14,6 +14,8 @@ spring:
     redis:
       host: localhost
       port: 6379
+  mongodb:
+    uri: mongodb://localhost:27017/order_integration_mongodb?authSource=admin
 
 springdoc:
   enable-hateoas: false
