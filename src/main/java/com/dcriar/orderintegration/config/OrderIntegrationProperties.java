@@ -104,12 +104,14 @@ public record OrderIntegrationProperties(
      * @param ordersPath    caminho base do recurso de pedidos
      * @param shipmentsPath caminho base do recurso de envios
      * @param paymentsPath  caminho base do recurso de pagamentos do Mercado Pago
+     * @param oauthTokenPath caminho do endpoint OAuth2 para renovação de tokens
      */
     public record MercadoLivreProperties(
             String baseUrl,
             String ordersPath,
             String shipmentsPath,
-            String paymentsPath
+            String paymentsPath,
+            String oauthTokenPath
     ) {
     }
 }

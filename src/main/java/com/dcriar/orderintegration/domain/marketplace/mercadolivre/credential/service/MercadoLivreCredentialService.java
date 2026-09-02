@@ -15,4 +15,20 @@ public interface MercadoLivreCredentialService {
      * @throws com.dcriar.orderintegration.exception.custom.ResourceNotFoundException quando a credencial não existir
      */
     MercadoLivreCredentialDocument getCredential(String accountId);
+
+    /**
+     * Persiste os tokens atualizados de uma credencial Mercado Livre.
+     *
+     * @param credential       credencial que será atualizada
+     * @param accessToken      novo access token
+     * @param refreshToken     novo refresh token ou o anterior
+     * @param expirationEpoch  vencimento do access token em epoch seconds
+     * @return credencial persistida
+     */
+    MercadoLivreCredentialDocument updateTokens(
+            MercadoLivreCredentialDocument credential,
+            String accessToken,
+            String refreshToken,
+            long expirationEpoch
+    );
 }

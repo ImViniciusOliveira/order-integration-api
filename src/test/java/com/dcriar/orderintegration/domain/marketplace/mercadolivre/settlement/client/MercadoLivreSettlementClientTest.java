@@ -3,6 +3,7 @@ package com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.c
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.service.MercadoLivreCredentialService;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.mapper.MercadoLivreSettlementResponseMapper;
+import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.oauth.MercadoLivreTokenClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -50,14 +51,15 @@ class MercadoLivreSettlementClientTest {
                         "/api/v2/payment/get_escrow_detail"
                 ),
                 new OrderIntegrationProperties.MercadoLivreProperties(
-                        "https://api.mercadolibre.com", "/orders", "/shipments", "/v1/payments"
+                        "https://api.mercadolibre.com", "/orders", "/shipments", "/v1/payments", "/oauth/token"
                 )
         );
         return new MercadoLivreSettlementClient(
                 mock(MercadoLivreCredentialService.class),
                 properties,
                 new MercadoLivreSettlementResponseMapper(),
-                RestClient.builder()
+                RestClient.builder(),
+                mock(MercadoLivreTokenClient.class)
         );
     }
 }

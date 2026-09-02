@@ -7,6 +7,7 @@ import com.dcriar.orderintegration.domain.marketplace.common.service.Marketplace
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.document.MercadoLivreCredentialDocument;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.service.MercadoLivreCredentialService;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.mapper.MercadoLivreSettlementResponseMapper;
+import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.oauth.MercadoLivreTokenClient;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
@@ -27,6 +28,7 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
     private final MercadoLivreCredentialService credentialService;
     private final OrderIntegrationProperties.MercadoLivreProperties properties;
     private final MercadoLivreSettlementResponseMapper responseMapper;
+    private final MercadoLivreTokenClient tokenClient;
     private final RestClient restClient;
 
     /**
@@ -36,16 +38,19 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
      * @param properties        propriedades globais da aplicação
      * @param responseMapper    mapper das respostas externas
      * @param restClientBuilder  builder HTTP global da aplicação
+     * @param tokenClient       client de renovação OAuth2
      */
     public MercadoLivreSettlementClient(
             MercadoLivreCredentialService credentialService,
             OrderIntegrationProperties properties,
             MercadoLivreSettlementResponseMapper responseMapper,
-            RestClient.Builder restClientBuilder
+            RestClient.Builder restClientBuilder,
+            MercadoLivreTokenClient tokenClient
     ) {
         this.credentialService = credentialService;
         this.properties = properties.mercadoLivre();
         this.responseMapper = responseMapper;
+        this.tokenClient = tokenClient;
         this.restClient = restClientBuilder.build();
     }
 
@@ -59,6 +64,7 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
         validateInput(accountId, orderId);
         MercadoLivreCredentialDocument credential = credentialService.getCredential(accountId);
         validateCredential(credential);
+        credential = tokenClient.ensureValid(credential);
 
         try {
             Map<String, Object> order = get(

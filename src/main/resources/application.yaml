@@ -53,3 +53,4 @@ order-integration:
     orders-path: ${MERCADO_LIVRE_ORDERS_PATH}
     shipments-path: ${MERCADO_LIVRE_SHIPMENTS_PATH}
     payments-path: ${MERCADO_LIVRE_PAYMENTS_PATH}
+    oauth-token-path: ${MERCADO_LIVRE_OAUTH_TOKEN_PATH}

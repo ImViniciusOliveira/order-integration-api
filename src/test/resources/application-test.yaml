@@ -29,6 +29,7 @@ order-integration:
     orders-path: /orders
     shipments-path: /shipments
     payments-path: /v1/payments
+    oauth-token-path: /oauth/token
   cors:
     allowed-origins: http://localhost:8081
   security:

@@ -63,7 +63,7 @@ class MarketplaceIngestionServiceTest {
                         "/api/v2/payment/get_escrow_detail"
                 ),
                 new OrderIntegrationProperties.MercadoLivreProperties(
-                        "https://api.mercadolibre.com", "/orders", "/shipments", "/v1/payments"
+                        "https://api.mercadolibre.com", "/orders", "/shipments", "/v1/payments", "/oauth/token"
                 )
         );
 
