@@ -5,18 +5,22 @@ import com.dcriar.orderintegration.domain.notification.service.OrderReconciliati
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * Implementação do serviço de disparo de notificações de conciliação financeira via Webhook para o n8n.
  * <p>
- * Utiliza o cliente HTTP reativo e moderno do Spring Boot 3 ({@link RestClient}) com isolamento de falhas,
- * garantindo que instabilidades na rede de notificações não afetem a integridade transacional do banco de dados.
+ * Utiliza o cliente HTTP reativo e moderno do Spring Boot ({@link RestClient}) com isolamento de falhas
+ * e timeouts estritos (5 segundos), garantindo que instabilidades na rede de notificações não afetem a integridade
+ * transacional do banco de dados ou bloqueiem as threads do worker de agendamento.
  */
 @Slf4j
 @Service
@@ -27,7 +31,15 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
 
     public N8nOrderReconciliationNotificationServiceImpl(OrderIntegrationProperties properties) {
         this.properties = properties;
-        this.restClient = RestClient.builder().build();
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(5));
+
+        this.restClient = RestClient.builder()
+                .requestFactory(requestFactory)
+                .build();
     }
 
     @Override

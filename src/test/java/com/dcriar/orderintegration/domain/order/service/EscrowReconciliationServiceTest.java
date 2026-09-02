@@ -2,6 +2,7 @@ package com.dcriar.orderintegration.domain.order.service;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.notification.service.OrderReconciliationNotificationService;
+import com.dcriar.orderintegration.domain.order.calculator.MercadoLivreFeeCalculator;
 import com.dcriar.orderintegration.domain.order.calculator.ShopeeCpfFeeCalculator;
 import com.dcriar.orderintegration.domain.order.calculator.mapper.FeeCalculationMapper;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
@@ -57,7 +58,7 @@ class EscrowReconciliationServiceTest {
                 orderMasterRepository,
                 delayQueueService,
                 properties,
-                List.of(new ShopeeCpfFeeCalculator()),
+                List.of(new ShopeeCpfFeeCalculator(), new MercadoLivreFeeCalculator()),
                 new FeeCalculationMapper(),
                 notificationService
         );
@@ -118,6 +119,60 @@ class EscrowReconciliationServiceTest {
     }
 
     @Test
+    @DisplayName("Deve conciliar pedidos pendentes do Mercado Livre com sucesso resgatados da fila")
+    void deveConciliarPedidosPendentesMercadoLivreComSucesso() {
+        // Arrange
+        Map<String, Object> item = Map.of(
+                "item_name", "Glitter Roxo",
+                "unit_price", 20.00,
+                "quantity", 1
+        );
+
+        OrderMaster order = OrderMaster.builder()
+                .id(2L)
+                .platform("MERCADOLIVRE")
+                .shopId("3644237792")
+                .orderSn("2000018236707690")
+                .status("COMPLETED")
+                .reconciled(false)
+                .metadata(Map.of(
+                        "sale_fee", 2.30,
+                        "escrow_amount", 17.70,
+                        "shipping_fee_borne_by_seller", 0.00,
+                        "items", List.of(item)
+                ))
+                .build();
+
+        when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("MERCADOLIVRE:2000018236707690"));
+        when(orderMasterRepository.findByPlatformAndOrderSn("MERCADOLIVRE", "2000018236707690")).thenReturn(Optional.of(order));
+        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Act
+        int reconciledCount = reconciliationService.reconcilePendingOrders();
+
+        // Assert
+        assertThat(reconciledCount).isEqualTo(1);
+        assertThat(order.isReconciled()).isTrue();
+        assertThat(order.getEscrowAmount()).isEqualByComparingTo(new BigDecimal("17.70"));
+        assertThat(order.getShippingFeeBorneBySeller()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(order.getMetadata()).containsKey("auditoria_financeira");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> auditoria = (Map<String, Object>) order.getMetadata().get("auditoria_financeira");
+        assertThat(auditoria).isNotNull();
+        assertThat(auditoria.get("versao_regra")).isEqualTo("MERCADOLIVRE_BR_2026");
+        assertThat(auditoria.get("has_divergence")).isEqualTo(false);
+
+        verify(orderMasterRepository).save(order);
+        verify(delayQueueService).remove("MERCADOLIVRE", "2000018236707690");
+        verify(notificationService).notifyReconciliationCompleted(
+                eq(order),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("20.00")) == 0),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("17.70")) == 0)
+        );
+    }
+
+    @Test
     @DisplayName("Deve reagendar conciliação com retry quando pedido estiver pendente de extrato")
     void deveReagendarConciliacaoQuandoPendente() {
         // Arrange
@@ -128,23 +183,66 @@ class EscrowReconciliationServiceTest {
                 .orderSn("PENDING_SN")
                 .status("COMPLETED")
                 .reconciled(false)
-                .metadata(Map.of())
+                .metadata(Map.of()) // sem dados de escrow
                 .build();
 
-        when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("SHOPEE:PENDING_SN"));
         when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "PENDING_SN")).thenReturn(Optional.of(order));
 
         // Act
-        int reconciledCount = reconciliationService.reconcilePendingOrders();
+        boolean result = reconciliationService.reconcileOrder("SHOPEE", "PENDING_SN");
 
         // Assert
-        assertThat(reconciledCount).isZero();
-        verify(delayQueueService).scheduleReconciliation(eq("SHOPEE"), eq("PENDING_SN"), any(Duration.class));
+        assertThat(result).isFalse();
+        assertThat(order.isReconciled()).isFalse();
+        verify(delayQueueService).scheduleReconciliation("SHOPEE", "PENDING_SN", Duration.ofMinutes(30));
+        verify(orderMasterRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
     }
 
     @Test
-    @DisplayName("Deve retornar 0 quando não houver pedidos prontos na fila do Redis")
-    void deveRetornarZeroQuandoFilaVazia() {
+    @DisplayName("Deve apenas remover da fila se pedido já estiver conciliado")
+    void deveRemoverDaFilaSeJaConciliado() {
+        // Arrange
+        OrderMaster order = OrderMaster.builder()
+                .id(3L)
+                .platform("SHOPEE")
+                .shopId("123")
+                .orderSn("ALREADY_RECONCILED")
+                .status("COMPLETED")
+                .reconciled(true)
+                .build();
+
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "ALREADY_RECONCILED")).thenReturn(Optional.of(order));
+
+        // Act
+        boolean result = reconciliationService.reconcileOrder("SHOPEE", "ALREADY_RECONCILED");
+
+        // Assert
+        assertThat(result).isTrue();
+        verify(delayQueueService).remove("SHOPEE", "ALREADY_RECONCILED");
+        verify(orderMasterRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("Deve remover da fila se pedido não for encontrado no banco de dados")
+    void deveRemoverDaFilaSeNaoEncontradoNoBanco() {
+        // Arrange
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "NOT_FOUND")).thenReturn(Optional.empty());
+
+        // Act
+        boolean result = reconciliationService.reconcileOrder("SHOPEE", "NOT_FOUND");
+
+        // Assert
+        assertThat(result).isFalse();
+        verify(delayQueueService).remove("SHOPEE", "NOT_FOUND");
+        verify(orderMasterRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("Deve retornar zero se a fila do Redis estiver vazia")
+    void deveRetornarZeroSeFilaVazia() {
         when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of());
 
         int count = reconciliationService.reconcilePendingOrders();
