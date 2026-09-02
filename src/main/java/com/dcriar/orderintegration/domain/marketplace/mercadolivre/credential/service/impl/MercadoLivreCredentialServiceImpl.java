@@ -23,8 +23,10 @@ public class MercadoLivreCredentialServiceImpl implements MercadoLivreCredential
     @Override
     public MercadoLivreCredentialDocument getCredential(String accountId) {
         if (accountId != null && !accountId.isBlank() && !isDefaultAccount(accountId)) {
-            return repository.findByClientId(accountId.trim())
-                    .orElseThrow(() -> new ResourceNotFoundException("CredencialMercadoLivreClientId", accountId));
+            String normalizedAccountId = accountId.trim();
+            return repository.findBySellerId(normalizedAccountId)
+                    .or(() -> repository.findByClientId(normalizedAccountId))
+                    .orElseThrow(() -> new ResourceNotFoundException("CredencialMercadoLivreConta", accountId));
         }
 
         return repository.findByPlataforma(PLATFORM_CODE)

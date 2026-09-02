@@ -29,6 +29,9 @@ public class MercadoLivreCredentialDocument {
     @Field("client_id")
     private String clientId;
 
+    @Field("seller_id")
+    private String sellerId;
+
     @Field("client_secret")
     private String clientSecret;
 

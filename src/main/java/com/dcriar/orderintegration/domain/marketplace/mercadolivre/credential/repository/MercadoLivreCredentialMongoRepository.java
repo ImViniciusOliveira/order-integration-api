@@ -21,6 +21,14 @@ public interface MercadoLivreCredentialMongoRepository extends MongoRepository<M
     Optional<MercadoLivreCredentialDocument> findByClientId(String clientId);
 
     /**
+     * Busca credencial pelo identificador do vendedor Mercado Livre.
+     *
+     * @param sellerId identificador do vendedor
+     * @return credencial correspondente
+     */
+    Optional<MercadoLivreCredentialDocument> findBySellerId(String sellerId);
+
+    /**
      * Busca a credencial padrão cadastrada para o Mercado Livre.
      *
      * @param plataforma identificador da plataforma

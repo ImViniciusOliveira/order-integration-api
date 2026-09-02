@@ -5,6 +5,9 @@ import com.dcriar.orderintegration.domain.notification.service.OrderReconciliati
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.MarketplaceFeeCalculator;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.mapper.FeeCalculationMapper;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.common.model.MarketplaceSettlement;
+import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementStatus;
+import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.EscrowReconciliationService;
@@ -39,6 +42,7 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
     private final EscrowDelayQueueService delayQueueService;
     private final OrderIntegrationProperties properties;
     private final List<MarketplaceFeeCalculator> feeCalculators;
+    private final List<MarketplaceSettlementClient> settlementClients;
     private final FeeCalculationMapper feeCalculationMapper;
     private final OrderReconciliationNotificationService notificationService;
 
@@ -109,109 +113,84 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
             return true;
         }
 
-        // Extração dos dados financeiros de liquidação do pedido
-        EscrowSettlementData settlementData = extractSettlementData(order);
+        MarketplaceSettlement settlement = fetchSettlement(normalizedPlatform, order);
+        if (settlement == null || settlement.status() == null) {
+            throw new IllegalStateException("Client de settlement retornou resultado inválido para "
+                    + normalizedPlatform + ":" + normalizedOrderSn);
+        }
 
-        if (settlementData.isAvailable()) {
-            BigDecimal subtotalCalculated = BigDecimal.ZERO;
-
-            // Cenário A: Extrato contábil liberado com sucesso -> Executar prova real matemática de taxas
-            if (feeCalculators != null && !feeCalculators.isEmpty()) {
-                Optional<MarketplaceFeeCalculator> calculatorOpt = feeCalculators.stream()
-                        .filter(c -> c.supports(normalizedPlatform))
-                        .findFirst();
-
-                if (calculatorOpt.isPresent()) {
-                    FeeCalculationResult feeResult = calculatorOpt.get().calculate(
-                            order,
-                            settlementData.escrowAmount(),
-                            settlementData.shippingFeeBorneBySeller()
-                    );
-                    subtotalCalculated = feeResult.subtotalItems();
-                    Map<String, Object> updatedMetadata = (order.getMetadata() != null)
-                            ? new LinkedHashMap<>(order.getMetadata())
-                            : new LinkedHashMap<>();
-                    updatedMetadata.put("auditoria_financeira", feeCalculationMapper.toMap(feeResult));
-                    order.setMetadata(updatedMetadata);
-                }
-            }
-
-            order.conciliarEscrow(settlementData.escrowAmount(), settlementData.shippingFeeBorneBySeller());
-            OrderMaster savedOrder = orderMasterRepository.save(order);
-            delayQueueService.remove(normalizedPlatform, normalizedOrderSn);
-
-            log.info("Pedido '{}:{}' conciliado com sucesso: repasse líquido={}, frete cobrado do vendedor={}",
-                    normalizedPlatform, normalizedOrderSn, settlementData.escrowAmount(), settlementData.shippingFeeBorneBySeller());
-
-            // Disparo de notificação externa (n8n / Telegram)
-            if (notificationService != null) {
-                notificationService.notifyReconciliationCompleted(savedOrder, subtotalCalculated, settlementData.escrowAmount());
-            }
-
-            return true;
-        } else {
-            // Cenário B: Extrato contábil ainda não liberado pela plataforma -> Reagendamento com retry
-            int retryDelayMinutes = (properties != null && properties.escrow() != null)
-                    ? properties.escrow().retryDelayMinutes()
-                    : 30;
-
-            delayQueueService.scheduleReconciliation(normalizedPlatform, normalizedOrderSn, Duration.ofMinutes(retryDelayMinutes));
-            log.info("Extrato de Escrow ainda não liberado para o pedido '{}:{}'. Reagendado no Redis para nova tentativa em {} minutos.",
-                    normalizedPlatform, normalizedOrderSn, retryDelayMinutes);
+        if (settlement.status() != SettlementStatus.AVAILABLE) {
+            handleUnavailableSettlement(normalizedPlatform, normalizedOrderSn, settlement.status());
             return false;
         }
-    }
 
-    /**
-     * Extrai os dados de liquidação contábil (Escrow) a partir do estado e metadados do pedido.
-     *
-     * @param order pedido mestre de domínio
-     * @return dados de liquidação contendo o valor líquido e o frete cobrado
-     */
-    private EscrowSettlementData extractSettlementData(OrderMaster order) {
-        Map<String, Object> metadata = order.getMetadata();
-        if (metadata == null || metadata.isEmpty()) {
-            // Se já tiver valores pré-carregados no próprio registro
-            if (order.getEscrowAmount() != null && order.getEscrowAmount().compareTo(BigDecimal.ZERO) > 0) {
-                return new EscrowSettlementData(order.getEscrowAmount(), order.getShippingFeeBorneBySeller(), true);
-            }
-            return new EscrowSettlementData(null, null, false);
-        }
+        BigDecimal subtotalCalculated = BigDecimal.ZERO;
 
-        BigDecimal escrowAmount = extractBigDecimalFromMap(metadata, "escrow_amount", "escrowAmount", "settlement_amount", "payout_amount");
-        BigDecimal sellerShippingFee = extractBigDecimalFromMap(metadata, "shipping_fee_borne_by_seller", "shippingFeeBorneBySeller", "actual_shipping_fee");
+        // Cenário A: Extrato contábil liberado com sucesso -> Executar prova real matemática de taxas
+        if (feeCalculators != null && !feeCalculators.isEmpty()) {
+            Optional<MarketplaceFeeCalculator> calculatorOpt = feeCalculators.stream()
+                    .filter(c -> c.supports(normalizedPlatform))
+                    .findFirst();
 
-        if (escrowAmount != null && escrowAmount.compareTo(BigDecimal.ZERO) > 0) {
-            return new EscrowSettlementData(escrowAmount, sellerShippingFee != null ? sellerShippingFee : BigDecimal.ZERO, true);
-        }
-
-        if (order.getEscrowAmount() != null && order.getEscrowAmount().compareTo(BigDecimal.ZERO) > 0) {
-            return new EscrowSettlementData(order.getEscrowAmount(), order.getShippingFeeBorneBySeller(), true);
-        }
-
-        return new EscrowSettlementData(null, null, false);
-    }
-
-    private BigDecimal extractBigDecimalFromMap(Map<String, Object> map, String... keys) {
-        for (String key : keys) {
-            Object val = map.get(key);
-            if (val != null) {
-                try {
-                    return new BigDecimal(val.toString());
-                } catch (NumberFormatException ignored) {
-                }
+            if (calculatorOpt.isPresent()) {
+                FeeCalculationResult feeResult = calculatorOpt.get().calculate(
+                        order,
+                        settlement.netAmount(),
+                        settlement.shippingFee()
+                );
+                subtotalCalculated = feeResult.subtotalItems();
+                Map<String, Object> updatedMetadata = (order.getMetadata() != null)
+                        ? new LinkedHashMap<>(order.getMetadata())
+                        : new LinkedHashMap<>();
+                updatedMetadata.put("auditoria_financeira", feeCalculationMapper.toMap(feeResult));
+                order.setMetadata(updatedMetadata);
             }
         }
-        return null;
+
+        order.conciliarEscrow(settlement.netAmount(), settlement.shippingFee());
+        OrderMaster savedOrder = orderMasterRepository.save(order);
+        delayQueueService.remove(normalizedPlatform, normalizedOrderSn);
+
+        log.info("Pedido '{}:{}' conciliado com sucesso: repasse líquido={}, frete cobrado do vendedor={}",
+                normalizedPlatform, normalizedOrderSn, settlement.netAmount(), settlement.shippingFee());
+
+        // Disparo de notificação externa (n8n / Telegram)
+        if (notificationService != null) {
+            notificationService.notifyReconciliationCompleted(savedOrder, subtotalCalculated, settlement.netAmount());
+        }
+
+        return true;
     }
 
-    /**
-     * Record interno para transporte imutável dos valores contábeis extraídos de liquidação.
-     */
-    private record EscrowSettlementData(
-            BigDecimal escrowAmount,
-            BigDecimal shippingFeeBorneBySeller,
-            boolean isAvailable
-    ) {
+    private void handleUnavailableSettlement(String platform, String orderSn, SettlementStatus status) {
+        if (status == SettlementStatus.PERMANENT_ERROR) {
+            delayQueueService.remove(platform, orderSn);
+            log.error("Settlement do pedido '{}:{}' falhou definitivamente. Item removido da fila.",
+                    platform, orderSn);
+            return;
+        }
+
+        int retryDelayMinutes = (properties != null && properties.escrow() != null)
+                ? properties.escrow().retryDelayMinutes()
+                : 30;
+
+        delayQueueService.scheduleReconciliation(platform, orderSn, Duration.ofMinutes(retryDelayMinutes));
+        log.info("Settlement do pedido '{}:{}' está em estado {}. Reagendado para nova tentativa em {} minutos.",
+                platform, orderSn, status, retryDelayMinutes);
+    }
+
+    private MarketplaceSettlement fetchSettlement(String platform, OrderMaster order) {
+        if (settlementClients == null) {
+            throw new IllegalStateException("Nenhum client de settlement foi configurado");
+        }
+
+        MarketplaceSettlementClient client = settlementClients.stream()
+                .filter(candidate -> candidate.supports(platform))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Nenhum client de settlement suporta a plataforma " + platform
+                ));
+
+        return client.fetchSettlement(order.getShopId(), order.getOrderSn());
     }
 }

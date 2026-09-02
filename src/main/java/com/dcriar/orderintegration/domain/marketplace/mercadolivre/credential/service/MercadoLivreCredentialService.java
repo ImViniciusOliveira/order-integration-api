@@ -10,7 +10,7 @@ public interface MercadoLivreCredentialService {
     /**
      * Obtém as credenciais da conta Mercado Livre.
      *
-     * @param accountId client_id ou identificador opcional da conta
+     * @param accountId seller_id, client_id ou identificador opcional da conta
      * @return credencial ativa da conta
      * @throws com.dcriar.orderintegration.exception.custom.ResourceNotFoundException quando a credencial não existir
      */

@@ -5,6 +5,9 @@ import com.dcriar.orderintegration.domain.notification.service.OrderReconciliati
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator.MercadoLivreFeeCalculator;
 import com.dcriar.orderintegration.domain.marketplace.shopee.calculator.ShopeeCpfFeeCalculator;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.mapper.FeeCalculationMapper;
+import com.dcriar.orderintegration.domain.marketplace.common.model.MarketplaceSettlement;
+import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementStatus;
+import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.impl.EscrowReconciliationServiceImpl;
@@ -42,6 +45,12 @@ class EscrowReconciliationServiceTest {
     @Mock
     private OrderReconciliationNotificationService notificationService;
 
+    @Mock
+    private MarketplaceSettlementClient shopeeSettlementClient;
+
+    @Mock
+    private MarketplaceSettlementClient mercadoLivreSettlementClient;
+
     private EscrowReconciliationService reconciliationService;
 
     @BeforeEach
@@ -66,9 +75,11 @@ class EscrowReconciliationServiceTest {
                 delayQueueService,
                 properties,
                 List.of(new ShopeeCpfFeeCalculator(), new MercadoLivreFeeCalculator()),
+                List.of(shopeeSettlementClient, mercadoLivreSettlementClient),
                 new FeeCalculationMapper(),
                 notificationService
         );
+
     }
 
     @Test
@@ -99,6 +110,10 @@ class EscrowReconciliationServiceTest {
         when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("SHOPEE:240828ABC"));
         when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "240828ABC")).thenReturn(Optional.of(order));
         when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
+        when(shopeeSettlementClient.supports("SHOPEE")).thenReturn(true);
+        when(shopeeSettlementClient.fetchSettlement("123", "240828ABC")).thenReturn(
+                availableSettlement("SHOPEE", "240828ABC", "123", "76.00", "0.00")
+        );
 
         // Act
         int reconciledCount = reconciliationService.reconcilePendingOrders();
@@ -123,6 +138,7 @@ class EscrowReconciliationServiceTest {
                 argThat(v -> v != null && v.compareTo(new BigDecimal("100.00")) == 0),
                 argThat(v -> v != null && v.compareTo(new BigDecimal("76.00")) == 0)
         );
+        verify(shopeeSettlementClient).fetchSettlement("123", "240828ABC");
     }
 
     @Test
@@ -153,6 +169,11 @@ class EscrowReconciliationServiceTest {
         when(delayQueueService.pollReadyOrders(50)).thenReturn(Set.of("MERCADOLIVRE:2000018236707690"));
         when(orderMasterRepository.findByPlatformAndOrderSn("MERCADOLIVRE", "2000018236707690")).thenReturn(Optional.of(order));
         when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
+        when(shopeeSettlementClient.supports("MERCADOLIVRE")).thenReturn(false);
+        when(mercadoLivreSettlementClient.supports("MERCADOLIVRE")).thenReturn(true);
+        when(mercadoLivreSettlementClient.fetchSettlement("3644237792", "2000018236707690")).thenReturn(
+                availableSettlement("MERCADOLIVRE", "2000018236707690", "3644237792", "17.70", "0.00")
+        );
 
         // Act
         int reconciledCount = reconciliationService.reconcilePendingOrders();
@@ -177,6 +198,7 @@ class EscrowReconciliationServiceTest {
                 argThat(v -> v != null && v.compareTo(new BigDecimal("20.00")) == 0),
                 argThat(v -> v != null && v.compareTo(new BigDecimal("17.70")) == 0)
         );
+        verify(mercadoLivreSettlementClient).fetchSettlement("3644237792", "2000018236707690");
     }
 
     @Test
@@ -194,6 +216,13 @@ class EscrowReconciliationServiceTest {
                 .build();
 
         when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "PENDING_SN")).thenReturn(Optional.of(order));
+        when(shopeeSettlementClient.supports("SHOPEE")).thenReturn(true);
+        when(shopeeSettlementClient.fetchSettlement("123", "PENDING_SN")).thenReturn(
+                new MarketplaceSettlement(
+                        SettlementStatus.PENDING, "SHOPEE", "PENDING_SN", "123",
+                        null, null, null, null, null, null, Map.of(), null, "Pendente"
+                )
+        );
 
         // Act
         boolean result = reconciliationService.reconcileOrder("SHOPEE", "PENDING_SN");
@@ -204,6 +233,34 @@ class EscrowReconciliationServiceTest {
         verify(delayQueueService).scheduleReconciliation("SHOPEE", "PENDING_SN", Duration.ofMinutes(30));
         verify(orderMasterRepository, never()).save(any());
         verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("Deve remover da fila quando settlement falhar definitivamente")
+    void deveRemoverDaFilaQuandoSettlementFalharDefinitivamente() {
+        OrderMaster order = OrderMaster.builder()
+                .platform("SHOPEE")
+                .shopId("123")
+                .orderSn("PERMANENT_ERROR_SN")
+                .reconciled(false)
+                .build();
+
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "PERMANENT_ERROR_SN"))
+                .thenReturn(Optional.of(order));
+        when(shopeeSettlementClient.supports("SHOPEE")).thenReturn(true);
+        when(shopeeSettlementClient.fetchSettlement("123", "PERMANENT_ERROR_SN")).thenReturn(
+                new MarketplaceSettlement(
+                        SettlementStatus.PERMANENT_ERROR, "SHOPEE", "PERMANENT_ERROR_SN", "123",
+                        null, null, null, null, null, null, Map.of(), null, "Pedido inválido"
+                )
+        );
+
+        boolean result = reconciliationService.reconcileOrder("SHOPEE", "PERMANENT_ERROR_SN");
+
+        assertThat(result).isFalse();
+        verify(delayQueueService).remove("SHOPEE", "PERMANENT_ERROR_SN");
+        verify(delayQueueService, never()).scheduleReconciliation(anyString(), anyString(), any());
+        verify(orderMasterRepository, never()).save(any());
     }
 
     @Test
@@ -256,5 +313,29 @@ class EscrowReconciliationServiceTest {
 
         assertThat(count).isZero();
         verifyNoInteractions(orderMasterRepository);
+    }
+
+    private MarketplaceSettlement availableSettlement(
+            String platform,
+            String orderId,
+            String accountId,
+            String netAmount,
+            String shippingFee
+    ) {
+        return new MarketplaceSettlement(
+                SettlementStatus.AVAILABLE,
+                platform,
+                orderId,
+                accountId,
+                null,
+                new BigDecimal(netAmount),
+                null,
+                null,
+                new BigDecimal(shippingFee),
+                null,
+                Map.of(),
+                null,
+                null
+        );
     }
 }

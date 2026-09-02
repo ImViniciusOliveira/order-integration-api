@@ -12,6 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -46,5 +48,17 @@ class MercadoLivreCredentialServiceTest {
         when(repository.findByPlataforma("mercadolivre")).thenReturn(Optional.of(credential));
 
         assertThat(service.getCredential(null)).isSameAs(credential);
+    }
+
+    @Test
+    void deveBuscarCredencialPorSellerId() {
+        MercadoLivreCredentialDocument credential = MercadoLivreCredentialDocument.builder()
+                .sellerId("seller-123")
+                .liveAccessToken("token")
+                .build();
+        when(repository.findBySellerId("seller-123")).thenReturn(Optional.of(credential));
+
+        assertThat(service.getCredential("seller-123")).isSameAs(credential);
+        verify(repository, never()).findByClientId("seller-123");
     }
 }
