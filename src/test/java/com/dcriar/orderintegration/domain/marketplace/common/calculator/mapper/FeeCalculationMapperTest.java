@@ -79,6 +79,8 @@ class FeeCalculationMapperTest {
         assertThat(resumo.get("subtotal_itens")).isEqualTo(new BigDecimal("50.00"));
         assertThat(resumo.get("total_taxas_marketplace")).isEqualTo(new BigDecimal("14.00"));
         assertThat(resumo.get("repasse_liquido_teorico")).isEqualTo(new BigDecimal("36.00"));
+        assertThat(resumo.get("repasse_liquido_real")).isEqualTo(new BigDecimal("36.00"));
+        assertThat(resumo).doesNotContainKey("repasse_liquido_shopee");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> itens = (List<Map<String, Object>>) map.get("itens_auditados");

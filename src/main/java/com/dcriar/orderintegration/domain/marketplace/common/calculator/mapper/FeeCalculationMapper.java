@@ -44,7 +44,7 @@ public class FeeCalculationMapper {
         resumo.put("total_taxas_marketplace", result.totalMarketplaceFees());
         resumo.put("frete_vendedor", result.sellerShippingFee());
         resumo.put("repasse_liquido_teorico", result.theoreticalPayout());
-        resumo.put("repasse_liquido_shopee", result.actualPayout());
+        resumo.put("repasse_liquido_real", result.actualPayout());
         resumo.put("diferenca_apurada", result.calculatedDifference());
         root.put("resumo_financeiro", resumo);
 
