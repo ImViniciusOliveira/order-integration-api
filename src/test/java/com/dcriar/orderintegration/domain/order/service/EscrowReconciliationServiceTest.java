@@ -51,7 +51,11 @@ class EscrowReconciliationServiceTest {
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
                 new OrderIntegrationProperties.SecurityProperties("test-key"),
                 new OrderIntegrationProperties.CorsProperties(List.of("http://localhost:8081")),
-                new OrderIntegrationProperties.NotificationProperties("http://n8n-order:5678/webhook/v1/notifications/reconciled")
+                new OrderIntegrationProperties.NotificationProperties("http://n8n-order:5678/webhook/v1/notifications/reconciled"),
+                new OrderIntegrationProperties.ShopeeProperties(
+                        "https://partner.shopeemobile.com",
+                        "/api/v2/payment/get_escrow_detail"
+                )
         );
 
         reconciliationService = new EscrowReconciliationServiceImpl(

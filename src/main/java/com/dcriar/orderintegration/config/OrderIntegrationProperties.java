@@ -13,6 +13,7 @@ import java.util.List;
  * @param security     configurações de segurança e chaves de autenticação interna
  * @param cors         configurações de origens permitidas para requisições cross-origin (CORS)
  * @param notification configurações de webhook e integração de notificações externas (ex: n8n)
+ * @param shopee       configurações da API financeira da Shopee
  */
 @ConfigurationProperties(prefix = "order-integration")
 public record OrderIntegrationProperties(
@@ -20,7 +21,8 @@ public record OrderIntegrationProperties(
         EscrowProperties escrow,
         SecurityProperties security,
         CorsProperties cors,
-        NotificationProperties notification
+        NotificationProperties notification,
+        ShopeeProperties shopee
 ) {
 
     /**
@@ -78,6 +80,18 @@ public record OrderIntegrationProperties(
      */
     public record NotificationProperties(
             String n8nReconciliationWebhookUrl
+    ) {
+    }
+
+    /**
+     * Configurações HTTP da API de settlement da Shopee.
+     *
+     * @param baseUrl    URL base da Shopee Open Platform
+     * @param escrowPath path do endpoint de detalhes de escrow
+     */
+    public record ShopeeProperties(
+            String baseUrl,
+            String escrowPath
     ) {
     }
 }

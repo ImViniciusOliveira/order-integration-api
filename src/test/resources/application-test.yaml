@@ -21,6 +21,9 @@ springdoc:
   enable-hateoas: false
 
 order-integration:
+  shopee:
+    base-url: https://partner.shopeemobile.com
+    escrow-path: /api/v2/payment/get_escrow_detail
   cors:
     allowed-origins: http://localhost:8081
   security:

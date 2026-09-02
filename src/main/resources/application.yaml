@@ -45,3 +45,6 @@ order-integration:
     max-retries: ${ESCROW_MAX_RETRIES}
   notification:
     n8n-reconciliation-webhook-url: ${N8N_RECONCILIATION_WEBHOOK_URL}
+  shopee:
+    base-url: ${SHOPEE_API_BASE_URL}
+    escrow-path: ${SHOPEE_ESCROW_PATH}
