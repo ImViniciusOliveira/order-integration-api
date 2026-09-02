@@ -24,6 +24,11 @@ order-integration:
   shopee:
     base-url: https://partner.shopeemobile.com
     escrow-path: /api/v2/payment/get_escrow_detail
+  mercado-livre:
+    base-url: https://api.mercadolibre.com
+    orders-path: /orders
+    shipments-path: /shipments
+    payments-path: /v1/payments
   cors:
     allowed-origins: http://localhost:8081
   security:

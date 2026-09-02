@@ -14,6 +14,7 @@ import java.util.List;
  * @param cors         configurações de origens permitidas para requisições cross-origin (CORS)
  * @param notification configurações de webhook e integração de notificações externas (ex: n8n)
  * @param shopee       configurações da API financeira da Shopee
+ * @param mercadoLivre configurações das APIs financeiras do Mercado Livre
  */
 @ConfigurationProperties(prefix = "order-integration")
 public record OrderIntegrationProperties(
@@ -22,7 +23,8 @@ public record OrderIntegrationProperties(
         SecurityProperties security,
         CorsProperties cors,
         NotificationProperties notification,
-        ShopeeProperties shopee
+        ShopeeProperties shopee,
+        MercadoLivreProperties mercadoLivre
 ) {
 
     /**
@@ -92,6 +94,22 @@ public record OrderIntegrationProperties(
     public record ShopeeProperties(
             String baseUrl,
             String escrowPath
+    ) {
+    }
+
+    /**
+     * Configurações HTTP das APIs de pedidos, envios e pagamentos do Mercado Livre.
+     *
+     * @param baseUrl       URL base da API de pedidos e envios
+     * @param ordersPath    caminho base do recurso de pedidos
+     * @param shipmentsPath caminho base do recurso de envios
+     * @param paymentsPath  caminho base do recurso de pagamentos do Mercado Pago
+     */
+    public record MercadoLivreProperties(
+            String baseUrl,
+            String ordersPath,
+            String shipmentsPath,
+            String paymentsPath
     ) {
     }
 }
