@@ -16,16 +16,13 @@ import java.util.List;
  * @param tolerance            margem de tolerância em centavos para compensar arredondamentos bancários
  * @param subtotalItems        somatório do valor dos itens comprados
  * @param totalQuantityItems   quantidade total agregada de unidades vendidas
- * @param baseCommission14     valor apurado da comissão padrão de 14%
- * @param transactionFee6      valor apurado da taxa de transação/processamento de 6%
- * @param fixedItemFee4        valor apurado da taxa fixa de R$ 4,00 por item vendido
- * @param lowValueSurcharge5   valor apurado da sobretaxa de R$ 5,00 por unidade em itens com preço menor que R$ 8,00
  * @param totalMarketplaceFees somatório de todas as tarifas e comissões do marketplace
  * @param sellerShippingFee    custo de frete real debitado da conta do vendedor
  * @param theoreticalPayout    repasse líquido esperado segundo a modelagem matemática oficial
  * @param actualPayout         repasse líquido real informado no extrato de liquidação do marketplace
  * @param calculatedDifference diferença matemática apurada entre o repasse real e o esperado
  * @param auditedItems         relação detalhada de todos os itens e variações auditados
+ * @param platformDetails      detalhes das tarifas exclusivos do marketplace
  * @param divergenceReason     justificativa textual da inconsistência detectada ou nulo se conciliado
  */
 public record FeeCalculationResult(
@@ -45,6 +42,7 @@ public record FeeCalculationResult(
         BigDecimal actualPayout,
         BigDecimal calculatedDifference,
         List<FeeCalculationItem> auditedItems,
+        FeeCalculationDetails platformDetails,
         String divergenceReason
 ) {
 }

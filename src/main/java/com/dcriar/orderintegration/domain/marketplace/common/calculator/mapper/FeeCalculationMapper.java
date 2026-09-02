@@ -1,7 +1,10 @@
 package com.dcriar.orderintegration.domain.marketplace.common.calculator.mapper;
 
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationItem;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationDetails;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator.model.MercadoLivreFeeCalculationDetails;
+import com.dcriar.orderintegration.domain.marketplace.shopee.calculator.model.ShopeeFeeCalculationDetails;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -37,16 +40,13 @@ public class FeeCalculationMapper {
         Map<String, Object> resumo = new LinkedHashMap<>();
         resumo.put("subtotal_itens", result.subtotalItems());
         resumo.put("quantidade_total_itens", result.totalQuantityItems());
-        resumo.put("comissao_base_14", result.baseCommission14());
-        resumo.put("taxa_transacao_6", result.transactionFee6());
-        resumo.put("taxa_fixa_item_4", result.fixedItemFee4());
-        resumo.put("sobretaxa_baixo_valor_5", result.lowValueSurcharge5());
         resumo.put("total_taxas_marketplace", result.totalMarketplaceFees());
         resumo.put("frete_vendedor", result.sellerShippingFee());
         resumo.put("repasse_liquido_teorico", result.theoreticalPayout());
         resumo.put("repasse_liquido_real", result.actualPayout());
         resumo.put("diferenca_apurada", result.calculatedDifference());
         root.put("resumo_financeiro", resumo);
+        root.put("detalhes_plataforma", mapPlatformDetails(result.platformDetails()));
 
         if (result.auditedItems() != null) {
             List<Map<String, Object>> itemsList = result.auditedItems().stream()
@@ -57,6 +57,25 @@ public class FeeCalculationMapper {
 
         root.put("motivo_divergencia", result.divergenceReason());
         return root;
+    }
+
+    private Map<String, Object> mapPlatformDetails(FeeCalculationDetails details) {
+        if (details instanceof ShopeeFeeCalculationDetails shopee) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("comissao_base_14", shopee.baseCommission14());
+            result.put("taxa_transacao_6", shopee.transactionFee6());
+            result.put("taxa_fixa_item_4", shopee.fixedItemFee4());
+            result.put("sobretaxa_baixo_valor_5", shopee.lowValueSurcharge5());
+            return result;
+        }
+        if (details instanceof MercadoLivreFeeCalculationDetails mercadoLivre) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("sale_fee", mercadoLivre.saleFee());
+            result.put("comissao_contingencial", mercadoLivre.defaultCommission());
+            result.put("tarifa_fixa_unitaria", mercadoLivre.fixedUnitFee());
+            return result;
+        }
+        return Collections.emptyMap();
     }
 
     private Map<String, Object> mapAuditedItem(FeeCalculationItem item) {

@@ -3,6 +3,7 @@ package com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.MarketplaceFeeCalculator;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationItem;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator.model.MercadoLivreFeeCalculationDetails;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.exception.custom.BusinessException;
 import lombok.extern.slf4j.Slf4j;
@@ -132,6 +133,11 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
                 resolvedActualPayout.setScale(2, RoundingMode.HALF_EVEN),
                 calculatedDifference.setScale(2, RoundingMode.HALF_EVEN),
                 auditedItems,
+                new MercadoLivreFeeCalculationDetails(
+                        saleFeeFromPayload,
+                        baseCommission.setScale(2, RoundingMode.HALF_EVEN),
+                        fixedItemFee.setScale(2, RoundingMode.HALF_EVEN)
+                ),
                 divergenceReason
         );
     }

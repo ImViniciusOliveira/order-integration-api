@@ -1,6 +1,7 @@
 package com.dcriar.orderintegration.domain.marketplace.shopee.calculator;
 
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.shopee.calculator.model.ShopeeFeeCalculationDetails;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.exception.custom.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,10 +73,11 @@ class ShopeeCpfFeeCalculatorTest {
         assertThat(result.hasDivergence()).isFalse();
         assertThat(result.subtotalItems()).isEqualByComparingTo("68.40");
         assertThat(result.totalQuantityItems()).isEqualTo(1);
-        assertThat(result.baseCommission14()).isEqualByComparingTo("9.58"); // 68.40 * 0.14 = 9.576 -> 9.58
-        assertThat(result.transactionFee6()).isEqualByComparingTo("4.10");   // 68.40 * 0.06 = 4.104 -> 4.10
-        assertThat(result.fixedItemFee4()).isEqualByComparingTo("4.00");    // 1 * 4.00
-        assertThat(result.lowValueSurcharge5()).isEqualByComparingTo("0.00");
+        ShopeeFeeCalculationDetails details = (ShopeeFeeCalculationDetails) result.platformDetails();
+        assertThat(details.baseCommission14()).isEqualByComparingTo("9.58"); // 68.40 * 0.14 = 9.576 -> 9.58
+        assertThat(details.transactionFee6()).isEqualByComparingTo("4.10");   // 68.40 * 0.06 = 4.104 -> 4.10
+        assertThat(details.fixedItemFee4()).isEqualByComparingTo("4.00");    // 1 * 4.00
+        assertThat(details.lowValueSurcharge5()).isEqualByComparingTo("0.00");
         assertThat(result.totalMarketplaceFees()).isEqualByComparingTo("17.68"); // 9.58 + 4.10 + 4.00 = 17.68
         assertThat(result.theoreticalPayout()).isEqualByComparingTo("50.72");   // 68.40 - 17.68 = 50.72
         assertThat(result.actualPayout()).isEqualByComparingTo("50.72");
@@ -117,10 +119,11 @@ class ShopeeCpfFeeCalculatorTest {
         assertThat(result.hasDivergence()).isFalse();
         assertThat(result.subtotalItems()).isEqualByComparingTo("14.00");
         assertThat(result.totalQuantityItems()).isEqualTo(2);
-        assertThat(result.baseCommission14()).isEqualByComparingTo("1.96");
-        assertThat(result.transactionFee6()).isEqualByComparingTo("0.84");
-        assertThat(result.fixedItemFee4()).isEqualByComparingTo("8.00");
-        assertThat(result.lowValueSurcharge5()).isEqualByComparingTo("10.00");
+        ShopeeFeeCalculationDetails details = (ShopeeFeeCalculationDetails) result.platformDetails();
+        assertThat(details.baseCommission14()).isEqualByComparingTo("1.96");
+        assertThat(details.transactionFee6()).isEqualByComparingTo("0.84");
+        assertThat(details.fixedItemFee4()).isEqualByComparingTo("8.00");
+        assertThat(details.lowValueSurcharge5()).isEqualByComparingTo("10.00");
         assertThat(result.totalMarketplaceFees()).isEqualByComparingTo("20.80");
         assertThat(result.theoreticalPayout()).isEqualByComparingTo("-6.80");
         assertThat(result.auditedItems().getFirst().lowValueItem()).isTrue();

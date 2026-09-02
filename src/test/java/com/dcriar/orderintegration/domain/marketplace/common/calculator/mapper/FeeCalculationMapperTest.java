@@ -2,6 +2,7 @@ package com.dcriar.orderintegration.domain.marketplace.common.calculator.mapper;
 
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationItem;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.shopee.calculator.model.ShopeeFeeCalculationDetails;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,12 @@ class FeeCalculationMapperTest {
                 new BigDecimal("36.00"),
                 BigDecimal.ZERO,
                 List.of(item),
+                new ShopeeFeeCalculationDetails(
+                        new BigDecimal("7.00"),
+                        new BigDecimal("3.00"),
+                        new BigDecimal("4.00"),
+                        BigDecimal.ZERO
+                ),
                 null
         );
 
@@ -80,7 +87,10 @@ class FeeCalculationMapperTest {
         assertThat(resumo.get("total_taxas_marketplace")).isEqualTo(new BigDecimal("14.00"));
         assertThat(resumo.get("repasse_liquido_teorico")).isEqualTo(new BigDecimal("36.00"));
         assertThat(resumo.get("repasse_liquido_real")).isEqualTo(new BigDecimal("36.00"));
-        assertThat(resumo).doesNotContainKey("repasse_liquido_shopee");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> detalhes = (Map<String, Object>) map.get("detalhes_plataforma");
+        assertThat(detalhes.get("comissao_base_14")).isEqualTo(new BigDecimal("7.00"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> itens = (List<Map<String, Object>>) map.get("itens_auditados");
