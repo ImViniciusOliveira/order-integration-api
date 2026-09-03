@@ -246,6 +246,10 @@ class EscrowReconciliationServiceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> audit = (Map<String, Object>) order.getMetadata().get("auditoria_financeira");
         assertThat(audit).containsEntry("has_divergence", true);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> divergence =
+                (Map<String, Object>) audit.get("divergencia_financeira");
+        assertThat(divergence).containsEntry("diferenca_apurada", new BigDecimal("4.00"));
         verify(orderMasterRepository).save(order);
         verify(delayQueueService).remove("SHOPEE", "DIVERGENCE_SN");
         verify(notificationService).notifyReconciliationCompleted(

@@ -96,4 +96,43 @@ class FeeCalculationMapperTest {
         assertThat(itens.getFirst().get("item_id")).isEqualTo(123L);
         assertThat(itens.getFirst().get("item_name")).isEqualTo("Produto Teste");
     }
+
+    @Test
+    @DisplayName("Deve estruturar os valores da divergência financeira para auditoria")
+    void shouldMapFinancialDivergenceDetails() {
+        FeeCalculationResult result = new FeeCalculationResult(
+                "SHOPEE_CPF_BR_2026",
+                OffsetDateTime.now(),
+                FeeAuditStatus.COMPLETE,
+                true,
+                new BigDecimal("0.05"),
+                new BigDecimal("100.00"),
+                1,
+                new BigDecimal("24.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("76.00"),
+                new BigDecimal("80.00"),
+                new BigDecimal("4.00"),
+                List.of(),
+                new ShopeeFeeCalculationDetails(
+                        new BigDecimal("24.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO
+                ),
+                "Repasse divergente"
+        );
+
+        Map<String, Object> map = mapper.toMap(result);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> divergence = (Map<String, Object>) map.get("divergencia_financeira");
+        assertThat(divergence)
+                .containsEntry("repasse_oficial", new BigDecimal("80.00"))
+                .containsEntry("repasse_teorico", new BigDecimal("76.00"))
+                .containsEntry("diferenca_apurada", new BigDecimal("4.00"))
+                .containsEntry("total_taxas_marketplace", new BigDecimal("24.00"))
+                .containsEntry("frete_vendedor", BigDecimal.ZERO)
+                .containsEntry("motivo", "Repasse divergente");
+    }
 }

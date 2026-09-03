@@ -49,6 +49,18 @@ public class FeeCalculationMapper {
         root.put("resumo_financeiro", resumo);
         root.put("detalhes_plataforma", mapPlatformDetails(result.platformDetails()));
 
+        if (result.hasDivergence()) {
+            Map<String, Object> divergence = new LinkedHashMap<>();
+            divergence.put("repasse_oficial", result.actualPayout());
+            divergence.put("repasse_teorico", result.theoreticalPayout());
+            divergence.put("diferenca_apurada", result.calculatedDifference());
+            divergence.put("tolerancia", result.tolerance());
+            divergence.put("total_taxas_marketplace", result.totalMarketplaceFees());
+            divergence.put("frete_vendedor", result.sellerShippingFee());
+            divergence.put("motivo", result.divergenceReason());
+            root.put("divergencia_financeira", divergence);
+        }
+
         if (result.auditedItems() != null) {
             List<Map<String, Object>> itemsList = result.auditedItems().stream()
                     .map(this::mapAuditedItem)
