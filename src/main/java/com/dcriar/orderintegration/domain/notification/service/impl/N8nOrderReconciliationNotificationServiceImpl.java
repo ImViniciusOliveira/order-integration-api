@@ -40,7 +40,8 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
 
     public N8nOrderReconciliationNotificationServiceImpl(
             OrderIntegrationProperties properties,
-            NotificationOutboxRepository outboxRepository
+            NotificationOutboxRepository outboxRepository,
+            RestClient.Builder restClientBuilder
     ) {
         this.properties = properties;
         this.outboxRepository = outboxRepository;
@@ -50,7 +51,7 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
 
-        this.restClient = RestClient.builder()
+        this.restClient = restClientBuilder
                 .requestFactory(requestFactory)
                 .build();
     }
