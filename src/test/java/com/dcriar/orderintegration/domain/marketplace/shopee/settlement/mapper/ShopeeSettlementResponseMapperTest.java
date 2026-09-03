@@ -22,11 +22,13 @@ class ShopeeSettlementResponseMapperTest {
                 "2608125R18PH4R",
                 Map.of(
                         "response", Map.of(
-                                "buyer_total_amount", "68.40",
-                                "escrow_amount", "50.72",
-                                "commission_fee", "9.58",
-                                "transaction_fee", "4.10",
-                                "income_details", Map.of("shipping_fee_borne_by_seller", "0.00")
+                                "order_income", Map.of(
+                                        "buyer_total_amount", "68.40",
+                                        "escrow_amount", "50.72",
+                                        "commission_fee", "9.58",
+                                        "transaction_fee", "4.10",
+                                        "income_details", Map.of("shipping_fee_borne_by_seller", "0.00")
+                                )
                         )
                 )
         );
@@ -42,10 +44,26 @@ class ShopeeSettlementResponseMapperTest {
         MarketplaceSettlement settlement = mapper.map(
                 "326559200",
                 "ORDER-PENDING",
-                Map.of("response", Map.of("escrow_amount", "0"))
+                Map.of("response", Map.of("order_income", Map.of("escrow_amount", "0")))
         );
 
         assertThat(settlement.status()).isEqualTo(SettlementStatus.PENDING);
         assertThat(settlement.netAmount()).isNull();
+    }
+
+    @Test
+    void deveRejeitarRespostaSemOrderIncome() {
+        MarketplaceSettlement settlement = mapper.map(
+                "326559200",
+                "ORDER-ORDER-INCOME",
+                Map.of(
+                        "response", Map.of(
+                                "order_sn", "ORDER-ORDER-INCOME"
+                        )
+                )
+        );
+
+        assertThat(settlement.status()).isEqualTo(SettlementStatus.PENDING);
+        assertThat(settlement.pendingReason()).isEqualTo("Resposta da Shopee sem o bloco order_income");
     }
 }

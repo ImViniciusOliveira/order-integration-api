@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 /**
  * Implementação do acesso às credenciais Shopee persistidas no MongoDB.
  */
@@ -26,5 +28,20 @@ public class ShopeeCredentialServiceImpl implements ShopeeCredentialService {
 
         return repository.findByShopId(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("CredencialShopee", shopId));
+    }
+
+    @Override
+    @Transactional
+    public ShopeeCredentialDocument updateTokens(
+            ShopeeCredentialDocument credential,
+            String accessToken,
+            String refreshToken,
+            long expirationEpoch
+    ) {
+        credential.setLiveAccessToken(accessToken);
+        credential.setLiveRefreshToken(refreshToken);
+        credential.setVencimentoTokenTs(Long.toString(expirationEpoch));
+        credential.setUltimoUpdateData(Instant.now().toString());
+        return repository.save(credential);
     }
 }

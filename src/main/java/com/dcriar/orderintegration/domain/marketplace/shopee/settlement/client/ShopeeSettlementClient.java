@@ -8,6 +8,7 @@ import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementSta
 import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.mapper.ShopeeSettlementResponseMapper;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.signer.ShopeeRequestSigner;
+import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.oauth.ShopeeTokenClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,7 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
     private final ShopeeCredentialService credentialService;
     private final OrderIntegrationProperties.ShopeeProperties properties;
     private final ShopeeRequestSigner requestSigner;
+    private final ShopeeTokenClient tokenClient;
     private final ShopeeSettlementResponseMapper responseMapper;
     private final RestClient restClient;
 
@@ -51,12 +53,14 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
             OrderIntegrationProperties properties,
             ShopeeRequestSigner requestSigner,
             ShopeeSettlementResponseMapper responseMapper,
-            RestClient.Builder restClientBuilder
+            RestClient.Builder restClientBuilder,
+            ShopeeTokenClient tokenClient
     ) {
         this.credentialService = credentialService;
         this.properties = properties.shopee();
         this.requestSigner = requestSigner;
         this.responseMapper = responseMapper;
+        this.tokenClient = tokenClient;
         this.restClient = restClientBuilder.build();
     }
 
@@ -71,6 +75,7 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
 
         ShopeeCredentialDocument credential = credentialService.getCredential(accountId);
         validateCredential(credential);
+        credential = tokenClient.ensureValid(credential);
 
         long timestamp = Instant.now().getEpochSecond();
         String signature = requestSigner.sign(
@@ -100,6 +105,7 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(Map.class);
+            logResponseDiagnostics(orderId, body);
             return responseMapper.map(accountId, orderId, body);
         } catch (RestClientResponseException exception) {
             SettlementStatus status = exception.getStatusCode().is5xxServerError()
@@ -112,6 +118,27 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
             return unavailable(accountId, orderId, SettlementStatus.RETRYABLE_ERROR,
                     "Falha de comunicação com a Shopee");
         }
+    }
+
+    private void logResponseDiagnostics(String orderId, Map<String, Object> body) {
+        if (body == null) {
+            log.warn("Resposta vazia da Shopee para o pedido '{}'.", orderId);
+            return;
+        }
+
+        Object responseObject = body.get("response");
+        if (responseObject instanceof Map<?, ?> response) {
+            log.info("Resposta Shopee escrow para '{}': error='{}', message='{}', responseKeys={}, escrow_amount='{}'.",
+                    orderId,
+                    body.get("error"),
+                    body.get("message"),
+                    response.keySet(),
+                    response.get("escrow_amount"));
+            return;
+        }
+
+        log.info("Resposta Shopee escrow para '{}': error='{}', message='{}', topLevelKeys={}, response ausente ou inválido.",
+                orderId, body.get("error"), body.get("message"), body.keySet());
     }
 
     private MarketplaceSettlement unavailable(

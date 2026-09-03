@@ -8,9 +8,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.Map;
 
 /**
@@ -18,6 +20,8 @@ import java.util.Map;
  */
 @Component
 public class MercadoLivreTokenClient {
+
+    private static final long REFRESH_CONFLICT_RETRY_DELAY_SECONDS = 30L;
 
     private final MercadoLivreCredentialService credentialService;
     private final OrderIntegrationProperties.MercadoLivreProperties properties;
@@ -54,18 +58,51 @@ public class MercadoLivreTokenClient {
         }
         validateRefreshCredential(credential);
 
-        MercadoLivreTokenResponse response = requestToken(credential);
+        MercadoLivreCredentialDocument credentialToRefresh = credential;
+        MercadoLivreTokenResponse response;
+        try {
+            response = requestToken(credentialToRefresh);
+        } catch (RestClientResponseException firstException) {
+            credentialToRefresh = reloadCredentialAfterRefreshFailure(credential, firstException);
+            if (!isExpired(credentialToRefresh)) {
+                return credentialToRefresh;
+            }
+            response = requestToken(credentialToRefresh);
+        }
         String refreshToken = response.refreshToken() == null
-                ? credential.getLiveRefreshToken()
+                ? credentialToRefresh.getLiveRefreshToken()
                 : response.refreshToken();
         long expirationEpoch = Instant.now().plusSeconds(response.expiresIn()).getEpochSecond();
 
         return credentialService.updateTokens(
-                credential,
+                credentialToRefresh,
                 response.accessToken(),
                 refreshToken,
                 expirationEpoch
         );
+    }
+
+    private MercadoLivreCredentialDocument reloadCredentialAfterRefreshFailure(
+            MercadoLivreCredentialDocument credential,
+            RestClientResponseException firstException
+    ) {
+        try {
+            TimeUnit.SECONDS.sleep(REFRESH_CONFLICT_RETRY_DELAY_SECONDS);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Retry da renovação OAuth2 do Mercado Livre interrompido",
+                    interruptedException);
+        }
+
+        String accountId = !isBlank(credential.getSellerId())
+                ? credential.getSellerId()
+                : credential.getClientId();
+        try {
+            return credentialService.getCredential(accountId);
+        } catch (RuntimeException reloadException) {
+            reloadException.addSuppressed(firstException);
+            throw reloadException;
+        }
     }
 
     private MercadoLivreTokenResponse requestToken(
@@ -106,7 +143,11 @@ public class MercadoLivreTokenClient {
             return true;
         }
         try {
-            return Long.parseLong(credential.getVencimentoTokenTs()) <= Instant.now().getEpochSecond();
+            long expiration = Long.parseLong(credential.getVencimentoTokenTs());
+            long expirationEpochSeconds = expiration > 10_000_000_000L
+                    ? expiration / 1000
+                    : expiration;
+            return expirationEpochSeconds <= Instant.now().getEpochSecond();
         } catch (NumberFormatException exception) {
             return true;
         }

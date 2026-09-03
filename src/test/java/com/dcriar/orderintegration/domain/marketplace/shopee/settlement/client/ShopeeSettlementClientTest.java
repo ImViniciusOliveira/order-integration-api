@@ -4,6 +4,7 @@ import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.marketplace.shopee.credential.service.ShopeeCredentialService;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.mapper.ShopeeSettlementResponseMapper;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.signer.ShopeeRequestSigner;
+import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.oauth.ShopeeTokenClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -48,7 +49,8 @@ class ShopeeSettlementClientTest {
                 new OrderIntegrationProperties.NotificationProperties("http://localhost"),
                 new OrderIntegrationProperties.ShopeeProperties(
                         "https://partner.shopeemobile.com",
-                        "/api/v2/payment/get_escrow_detail"
+                        "/api/v2/payment/get_escrow_detail",
+                        "/api/v2/auth/access_token/get"
                 ),
                 new OrderIntegrationProperties.MercadoLivreProperties(
                         "https://api.mercadolibre.com", "/orders", "/shipments", "/v1/payments", "/oauth/token"
@@ -59,7 +61,8 @@ class ShopeeSettlementClientTest {
                 properties,
                 new ShopeeRequestSigner(),
                 new ShopeeSettlementResponseMapper(),
-                RestClient.builder()
+                RestClient.builder(),
+                mock(ShopeeTokenClient.class)
         );
     }
 }

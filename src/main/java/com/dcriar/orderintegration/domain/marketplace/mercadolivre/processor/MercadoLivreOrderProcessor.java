@@ -37,7 +37,7 @@ public class MercadoLivreOrderProcessor implements MarketplaceOrderProcessor {
         // 2. Extrair shop_id / seller_id (se não vier no parâmetro externo)
         String resolvedShopId = (shopId != null && !shopId.isBlank())
                 ? shopId
-                : extractString(payload, "shop_id", "shopId", "seller_id", "sellerId");
+                : extractString(payload, "shop_id", "shopId", "seller_id", "sellerId", "user_id", "userId");
 
         if (resolvedShopId == null) {
             resolvedShopId = "default";

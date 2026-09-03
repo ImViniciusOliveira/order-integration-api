@@ -48,6 +48,7 @@ order-integration:
   shopee:
     base-url: ${SHOPEE_API_BASE_URL}
     escrow-path: ${SHOPEE_ESCROW_PATH}
+    token-path: ${SHOPEE_TOKEN_PATH}
   mercado-livre:
     base-url: ${MERCADO_LIVRE_API_BASE_URL}
     orders-path: ${MERCADO_LIVRE_ORDERS_PATH}

@@ -61,16 +61,9 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
             return;
         }
 
-        boolean hasDivergence = false;
-        if (order.getMetadata() != null && order.getMetadata().containsKey("auditoria_financeira")) {
-            Object auditoriaObj = order.getMetadata().get("auditoria_financeira");
-            if (auditoriaObj instanceof Map<?, ?> auditoriaMap) {
-                Object divObj = auditoriaMap.get("has_divergence");
-                if (divObj != null) {
-                    hasDivergence = Boolean.parseBoolean(divObj.toString());
-                }
-            }
-        }
+        Map<String, Object> audit = order.getMetadata() != null
+                ? asObjectMap(order.getMetadata().get("auditoria_financeira"))
+                : Map.of();
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("platform", order.getPlatform());
@@ -78,10 +71,7 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
         payload.put("shop_id", order.getShopId());
         payload.put("subtotal", subtotal != null ? subtotal : BigDecimal.ZERO);
         payload.put("escrow_amount", escrowAmount != null ? escrowAmount : BigDecimal.ZERO);
-        payload.put("has_divergence", hasDivergence);
-        payload.put("auditoria_financeira", order.getMetadata() != null
-                ? order.getMetadata().get("auditoria_financeira")
-                : Map.of());
+        payload.put("auditoria_financeira", audit);
 
         try {
             log.info("Disparando webhook de conciliação finalizada para o n8n: url='{}', pedido='{}'", webhookUrl, order.getOrderSn());
@@ -95,5 +85,19 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
         } catch (RestClientException e) {
             log.warn("Falha ao entregar notificação de conciliação ao n8n para o pedido '{}': {}", order.getOrderSn(), e.getMessage());
         }
+    }
+
+    private Map<String, Object> asObjectMap(Object value) {
+        if (!(value instanceof Map<?, ?> source)) {
+            return Map.of();
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        source.forEach((key, entryValue) -> {
+            if (key instanceof String stringKey) {
+                result.put(stringKey, entryValue);
+            }
+        });
+        return result;
     }
 }

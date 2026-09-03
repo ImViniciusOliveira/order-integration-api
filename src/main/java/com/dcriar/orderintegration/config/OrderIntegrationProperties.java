@@ -90,10 +90,12 @@ public record OrderIntegrationProperties(
      *
      * @param baseUrl    URL base da Shopee Open Platform
      * @param escrowPath path do endpoint de detalhes de escrow
+     * @param tokenPath  path do endpoint de renovacao de access token
      */
     public record ShopeeProperties(
             String baseUrl,
-            String escrowPath
+            String escrowPath,
+            String tokenPath
     ) {
     }
 

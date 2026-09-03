@@ -15,4 +15,20 @@ public interface ShopeeCredentialService {
      * @throws com.dcriar.orderintegration.exception.custom.ResourceNotFoundException quando a credencial não existir
      */
     ShopeeCredentialDocument getCredential(String shopId);
+
+    /**
+     * Persiste os tokens atualizados de uma loja Shopee.
+     *
+     * @param credential credencial que sera atualizada
+     * @param accessToken novo access token
+     * @param refreshToken novo refresh token
+     * @param expirationEpoch vencimento do access token em epoch seconds
+     * @return credencial persistida
+     */
+    ShopeeCredentialDocument updateTokens(
+            ShopeeCredentialDocument credential,
+            String accessToken,
+            String refreshToken,
+            long expirationEpoch
+    );
 }

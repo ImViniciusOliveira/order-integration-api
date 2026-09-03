@@ -94,4 +94,18 @@ class MercadoLivreOrderProcessorTest {
         assertThat(result.status()).isEqualTo("PAID");
         assertThat(result.estimatedShippingFee()).isEqualByComparingTo(new BigDecimal("15.50"));
     }
+
+    @Test
+    @DisplayName("Deve usar user_id como identificador da conta quando seller_id não estiver disponível")
+    void shouldResolveUserIdAsAccountId() {
+        Map<String, Object> payload = Map.of(
+                "id", 2000018236707690L,
+                "user_id", 293455533L,
+                "status", "paid"
+        );
+
+        OrderProcessingResult result = processor.process(null, payload);
+
+        assertThat(result.shopId()).isEqualTo("293455533");
+    }
 }

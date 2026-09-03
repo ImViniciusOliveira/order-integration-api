@@ -30,12 +30,17 @@ public class ShopeeSettlementResponseMapper {
             return unavailable(accountId, orderId, "Detalhes de escrow ainda não disponíveis");
         }
 
-        BigDecimal netAmount = decimalValue(response, "escrow_amount");
+        Map<String, Object> financialResponse = mapValue(response, "order_income");
+        if (financialResponse.isEmpty()) {
+            return unavailable(accountId, orderId, "Resposta da Shopee sem o bloco order_income");
+        }
+
+        BigDecimal netAmount = decimalValue(financialResponse, "escrow_amount");
         if (netAmount == null || netAmount.compareTo(BigDecimal.ZERO) <= 0) {
             return unavailable(accountId, orderId, "Escrow ainda não liberado pela Shopee");
         }
 
-        Map<String, Object> incomeDetails = mapValue(response, "income_details");
+        Map<String, Object> incomeDetails = mapValue(financialResponse, "income_details");
         Map<String, Object> financialDetails = new LinkedHashMap<>(response);
         if (!incomeDetails.isEmpty()) {
             financialDetails.put("income_details", incomeDetails);
@@ -47,10 +52,10 @@ public class ShopeeSettlementResponseMapper {
                 ShopeeSettlementClient.PLATFORM_CODE,
                 orderId,
                 accountId,
-                decimalValue(response, "buyer_total_amount"),
+                decimalValue(financialResponse, "buyer_total_amount"),
                 netAmount,
-                decimalValue(response, "commission_fee"),
-                decimalValue(response, "transaction_fee"),
+                decimalValue(financialResponse, "commission_fee"),
+                decimalValue(financialResponse, "transaction_fee"),
                 shippingFee != null ? shippingFee : BigDecimal.ZERO,
                 null,
                 financialDetails,

@@ -48,7 +48,8 @@ class MercadoLivreSettlementClientTest {
                 new OrderIntegrationProperties.NotificationProperties("http://localhost"),
                 new OrderIntegrationProperties.ShopeeProperties(
                         "https://partner.shopeemobile.com",
-                        "/api/v2/payment/get_escrow_detail"
+                        "/api/v2/payment/get_escrow_detail",
+                        "/api/v2/auth/access_token/get"
                 ),
                 new OrderIntegrationProperties.MercadoLivreProperties(
                         "https://api.mercadolibre.com", "/orders", "/shipments", "/v1/payments", "/oauth/token"

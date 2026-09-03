@@ -38,6 +38,18 @@ class MercadoLivreTokenClientTest {
     }
 
     @Test
+    @DisplayName("Deve reconhecer vencimento legado salvo em milissegundos")
+    void deveReconhecerVencimentoLegadoEmMilissegundos() {
+        MercadoLivreCredentialService credentialService = mock(MercadoLivreCredentialService.class);
+        MercadoLivreTokenClient client = newClient(RestClient.builder(), credentialService);
+        MercadoLivreCredentialDocument credential = credential(
+                Long.toString((System.currentTimeMillis() / 1000) + 3600).concat("000")
+        );
+
+        assertThat(client.ensureValid(credential)).isSameAs(credential);
+    }
+
+    @Test
     @DisplayName("Deve renovar e persistir token expirado")
     void deveRenovarTokenExpirado() {
         RestClient.Builder builder = RestClient.builder();
@@ -86,7 +98,8 @@ class MercadoLivreTokenClientTest {
                 new OrderIntegrationProperties.NotificationProperties("http://localhost"),
                 new OrderIntegrationProperties.ShopeeProperties(
                         "https://partner.shopeemobile.com",
-                        "/api/v2/payment/get_escrow_detail"
+                        "/api/v2/payment/get_escrow_detail",
+                        "/api/v2/auth/access_token/get"
                 ),
                 new OrderIntegrationProperties.MercadoLivreProperties(
                         "https://api.mercadolibre.com",
