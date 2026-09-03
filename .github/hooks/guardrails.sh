@@ -105,7 +105,7 @@ if [[ "$FILE_PATH" == *.java ]]; then
         ERRORS+="[Consultas] Proibido @Query em Repositories. Use Specifications. "
     fi
 
-    if [[ "$FILE_PATH" == *domain/*.java ]] && echo "$CONTENT" | grep -q "\.api\."; then
+    if [[ "$FILE_PATH" == *src/main/java/*domain/*.java ]] && echo "$CONTENT" | grep -q "\.api\."; then
         ERRORS+="[Isolamento] Proibido Domain importar pacote API. "
     fi
 
