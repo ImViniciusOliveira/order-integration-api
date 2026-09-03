@@ -1,6 +1,7 @@
 package com.dcriar.orderintegration.api.hateoas;
 
 import com.dcriar.orderintegration.api.dto.response.OrderMasterResponse;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import com.dcriar.orderintegration.api.mapper.OrderMasterMapper;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,7 +54,7 @@ class OrderMasterModelAssemblerTest {
         OrderMasterResponse response = new OrderMasterResponse(
                 100L, "SHOPEE", "123456", "240828ABC123", "COMPLETED", "BR123456789",
                 new BigDecimal("15.50"), new BigDecimal("85.00"), new BigDecimal("0.00"),
-                true, Map.of("item_count", 2),
+                true, FinancialAuditStatus.RECONCILED, Map.of("item_count", 2),
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
 
@@ -81,7 +82,7 @@ class OrderMasterModelAssemblerTest {
         OrderMasterResponse response = new OrderMasterResponse(
                 100L, "SHOPEE", "123456", "240828ABC123", "COMPLETED", "BR123456789",
                 new BigDecimal("15.50"), new BigDecimal("85.00"), new BigDecimal("0.00"),
-                true, Map.of("item_count", 2),
+                true, FinancialAuditStatus.RECONCILED, Map.of("item_count", 2),
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
 

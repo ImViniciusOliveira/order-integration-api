@@ -10,6 +10,7 @@ import com.dcriar.orderintegration.domain.marketplace.common.model.MarketplaceSe
 import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.EscrowReconciliationService;
 import com.dcriar.orderintegration.domain.queue.service.EscrowDelayQueueService;
@@ -122,6 +123,10 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
         }
 
         if (settlement.status() != SettlementStatus.AVAILABLE) {
+            order.atualizarStatusAuditoria(settlement.status() == SettlementStatus.PERMANENT_ERROR
+                    ? FinancialAuditStatus.PERMANENT_ERROR
+                    : FinancialAuditStatus.PENDING_SETTLEMENT);
+            orderMasterRepository.save(order);
             handleUnavailableSettlement(normalizedPlatform, normalizedOrderSn, settlement.status());
             return false;
         }
@@ -134,31 +139,42 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
         order.setMetadata(settlementMetadata);
 
         BigDecimal subtotalCalculated = BigDecimal.ZERO;
+        boolean hasFinancialDivergence = false;
 
-        // Cenário A: Extrato contábil liberado com sucesso -> Executar prova real matemática de taxas
-        if (feeCalculators != null && !feeCalculators.isEmpty()) {
-            Optional<MarketplaceFeeCalculator> calculatorOpt = feeCalculators.stream()
-                    .filter(c -> c.supports(normalizedPlatform))
-                    .findFirst();
+        // Cenário A: extrato liberado -> executar a prova real com dados oficiais.
+        Optional<MarketplaceFeeCalculator> calculatorOpt = feeCalculators == null
+                ? Optional.empty()
+                : feeCalculators.stream()
+                .filter(c -> c.supports(normalizedPlatform))
+                .findFirst();
 
-            if (calculatorOpt.isPresent()) {
-                FeeCalculationResult feeResult = calculatorOpt.get().calculate(
-                        order,
-                        settlement.netAmount(),
-                        settlement.shippingFee()
-                );
-                subtotalCalculated = feeResult.subtotalItems();
-                        settlementMetadata.put("auditoria_financeira", feeCalculationMapper.toMap(feeResult));
-                        order.setMetadata(settlementMetadata);
-                        if (feeResult.auditStatus() == FeeAuditStatus.INCOMPLETE) {
-                            orderMasterRepository.save(order);
-                            handleUnavailableSettlement(normalizedPlatform, normalizedOrderSn, SettlementStatus.PENDING);
-                            return false;
-                        }
-                }
+        if (calculatorOpt.isEmpty()) {
+            order.atualizarStatusAuditoria(FinancialAuditStatus.AUDIT_INCOMPLETE);
+            orderMasterRepository.save(order);
+            handleUnavailableSettlement(normalizedPlatform, normalizedOrderSn, SettlementStatus.PENDING);
+            return false;
+        }
+
+        FeeCalculationResult feeResult = calculatorOpt.get().calculate(
+                order,
+                settlement.netAmount(),
+                settlement.shippingFee()
+        );
+        subtotalCalculated = feeResult.subtotalItems();
+        hasFinancialDivergence = feeResult.hasDivergence();
+        settlementMetadata.put("auditoria_financeira", feeCalculationMapper.toMap(feeResult));
+        order.setMetadata(settlementMetadata);
+        if (feeResult.auditStatus() == FeeAuditStatus.INCOMPLETE) {
+            order.atualizarStatusAuditoria(FinancialAuditStatus.AUDIT_INCOMPLETE);
+            orderMasterRepository.save(order);
+            handleUnavailableSettlement(normalizedPlatform, normalizedOrderSn, SettlementStatus.PENDING);
+            return false;
         }
 
         order.conciliarEscrow(settlement.netAmount(), settlement.shippingFee());
+        if (hasFinancialDivergence) {
+            order.atualizarStatusAuditoria(FinancialAuditStatus.RECONCILED_WITH_DIVERGENCE);
+        }
         OrderMaster savedOrder = orderMasterRepository.save(order);
         delayQueueService.remove(normalizedPlatform, normalizedOrderSn);
         delayQueueService.clearRetry(normalizedPlatform, normalizedOrderSn);

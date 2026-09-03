@@ -9,6 +9,7 @@ import com.dcriar.orderintegration.domain.marketplace.common.model.MarketplaceSe
 import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import com.dcriar.orderintegration.domain.order.repository.OrderMasterRepository;
 import com.dcriar.orderintegration.domain.order.service.impl.EscrowReconciliationServiceImpl;
 import com.dcriar.orderintegration.domain.queue.service.EscrowDelayQueueService;
@@ -239,8 +240,9 @@ class EscrowReconciliationServiceTest {
         // Assert
         assertThat(result).isFalse();
         assertThat(order.isReconciled()).isFalse();
+        assertThat(order.getFinancialAuditStatus()).isEqualTo(FinancialAuditStatus.PENDING_SETTLEMENT);
         verify(delayQueueService).scheduleReconciliation("SHOPEE", "PENDING_SN", Duration.ofMinutes(30));
-        verify(orderMasterRepository, never()).save(any());
+        verify(orderMasterRepository).save(order);
         verifyNoInteractions(notificationService);
     }
 
@@ -267,9 +269,10 @@ class EscrowReconciliationServiceTest {
         boolean result = reconciliationService.reconcileOrder("SHOPEE", "PERMANENT_ERROR_SN");
 
         assertThat(result).isFalse();
+        assertThat(order.getFinancialAuditStatus()).isEqualTo(FinancialAuditStatus.PERMANENT_ERROR);
         verify(delayQueueService).moveToDeadLetterQueue("SHOPEE", "PERMANENT_ERROR_SN");
         verify(delayQueueService, never()).scheduleReconciliation(anyString(), anyString(), any());
-        verify(orderMasterRepository, never()).save(any());
+        verify(orderMasterRepository).save(order);
     }
 
     @Test

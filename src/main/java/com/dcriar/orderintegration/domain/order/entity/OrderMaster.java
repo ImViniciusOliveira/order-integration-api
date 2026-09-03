@@ -1,11 +1,14 @@
 package com.dcriar.orderintegration.domain.order.entity;
 
 import com.dcriar.orderintegration.domain.common.AuditableEntity;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -75,6 +78,11 @@ public class OrderMaster extends AuditableEntity {
     @Column(name = "reconciled", nullable = false)
     private boolean reconciled = false;
 
+    @Builder.Default
+    @Column(name = "financial_audit_status", nullable = false, length = 40)
+    @Enumerated(EnumType.STRING)
+    private FinancialAuditStatus financialAuditStatus = FinancialAuditStatus.PENDING_SETTLEMENT;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
     private Map<String, Object> metadata;
@@ -125,6 +133,19 @@ public class OrderMaster extends AuditableEntity {
         this.escrowAmount = escrowAmount;
         this.shippingFeeBorneBySeller = shippingFeeBorneBySeller;
         this.reconciled = true;
+        this.financialAuditStatus = FinancialAuditStatus.RECONCILED;
+    }
+
+    /**
+     * Atualiza o estado persistente da auditoria financeira.
+     *
+     * @param status novo estado da auditoria
+     */
+    public void atualizarStatusAuditoria(FinancialAuditStatus status) {
+        if (status == null) {
+            throw new IllegalArgumentException("O estado da auditoria financeira é obrigatório.");
+        }
+        this.financialAuditStatus = status;
     }
 
     /**

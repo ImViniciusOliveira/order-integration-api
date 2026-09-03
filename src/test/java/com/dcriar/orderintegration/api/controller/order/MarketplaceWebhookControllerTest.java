@@ -1,6 +1,7 @@
 package com.dcriar.orderintegration.api.controller.order;
 
 import com.dcriar.orderintegration.api.dto.response.OrderMasterResponse;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import com.dcriar.orderintegration.api.hateoas.OrderMasterModelAssembler;
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
@@ -68,7 +69,7 @@ class MarketplaceWebhookControllerTest {
         OrderMasterResponse response = new OrderMasterResponse(
                 1L, "SHOPEE", "123456", "240828ABC", "READY_TO_SHIP", "BR123",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                false, Map.of(), OffsetDateTime.now(), OffsetDateTime.now()
+                false, FinancialAuditStatus.PENDING_SETTLEMENT, Map.of(), OffsetDateTime.now(), OffsetDateTime.now()
         );
 
         EntityModel<OrderMasterResponse> entityModel = EntityModel.of(response, Link.of("/api/v1/orders/1").withSelfRel());

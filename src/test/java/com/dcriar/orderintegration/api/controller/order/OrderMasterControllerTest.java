@@ -2,6 +2,7 @@ package com.dcriar.orderintegration.api.controller.order;
 
 import com.dcriar.orderintegration.api.dto.filter.OrderFilterRequest;
 import com.dcriar.orderintegration.api.dto.response.OrderMasterResponse;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import com.dcriar.orderintegration.api.hateoas.OrderMasterModelAssembler;
 import com.dcriar.orderintegration.api.mapper.OrderMasterMapper;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
@@ -83,7 +84,7 @@ class OrderMasterControllerTest {
         OrderMasterResponse response = new OrderMasterResponse(
                 10L, "SHOPEE", "123456", "240828ABC", "COMPLETED", "BR123",
                 new BigDecimal("10.00"), new BigDecimal("90.00"), BigDecimal.ZERO,
-                true, Map.of(), OffsetDateTime.now(), OffsetDateTime.now()
+                true, FinancialAuditStatus.RECONCILED, Map.of(), OffsetDateTime.now(), OffsetDateTime.now()
         );
 
         Page<OrderMaster> page = new PageImpl<>(List.of(entity), pageable, 1);
@@ -122,7 +123,7 @@ class OrderMasterControllerTest {
         OrderMasterResponse response = new OrderMasterResponse(
                 10L, "SHOPEE", "123456", "240828ABC", "COMPLETED", "BR123",
                 new BigDecimal("10.00"), new BigDecimal("90.00"), BigDecimal.ZERO,
-                true, Map.of(), OffsetDateTime.now(), OffsetDateTime.now()
+                true, FinancialAuditStatus.RECONCILED, Map.of(), OffsetDateTime.now(), OffsetDateTime.now()
         );
 
         EntityModel<OrderMasterResponse> entityModel = EntityModel.of(response, Link.of("/api/v1/orders/10").withSelfRel());

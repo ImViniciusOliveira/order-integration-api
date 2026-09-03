@@ -1,5 +1,6 @@
 package com.dcriar.orderintegration.api.dto.response;
 
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
@@ -19,6 +20,7 @@ import java.util.Map;
  * @param escrowAmount             repasse líquido definitivo liberado após entrega (Escrow)
  * @param shippingFeeBorneBySeller custo real de frete cobrado do vendedor
  * @param reconciled               indica se a conciliação financeira definitiva já foi processada
+ * @param financialAuditStatus     estado detalhado da auditoria financeira
  * @param metadata                 detalhes dinâmicos de itens, SKUs e metadados adicionais
  * @param createdAt                data e hora de ingestão do pedido
  * @param updatedAt                data e hora da última atualização
@@ -54,6 +56,9 @@ public record OrderMasterResponse(
 
         @Schema(description = "Indica se a conciliação financeira definitiva já foi processada", example = "false")
         boolean reconciled,
+
+        @Schema(description = "Estado detalhado da auditoria financeira", example = "PENDING_SETTLEMENT")
+        FinancialAuditStatus financialAuditStatus,
 
         @Schema(description = "Detalhes dinâmicos de itens, SKUs e metadados adicionais", example = "{\"order_sn\":\"260828ABC123XYZ\",\"items\":[{\"item_name\":\"Camiseta\",\"quantity\":1}]}")
         Map<String, Object> metadata,
