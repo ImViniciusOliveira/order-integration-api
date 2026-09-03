@@ -62,6 +62,7 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
             return incompleteResult(subtotalItems, totalQuantityItems, auditedItems);
         }
         totalMarketplaceFees = saleFeeFromPayload.setScale(4, RoundingMode.HALF_EVEN);
+        Map<String, Object> saleFeeDetails = extractSaleFeeDetails(order.getMetadata());
 
         BigDecimal transactionFee = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
         BigDecimal lowValueSurchargeTotal = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
@@ -118,9 +119,9 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
                 auditedItems,
                 new MercadoLivreFeeCalculationDetails(
                         saleFeeFromPayload,
-                        null,
-                        null,
-                        null
+                        extractBigDecimal(saleFeeDetails, "percentage_fee"),
+                        extractBigDecimal(saleFeeDetails, "fixed_fee"),
+                        extractBigDecimal(saleFeeDetails, "financing_add_on_fee")
                 ),
                 divergenceReason
         );
@@ -155,12 +156,36 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
             return null;
         }
 
-        BigDecimal directFee = extractBigDecimal(metadata, "sale_fee", "saleFee", "marketplace_fee", "marketplaceFee");
+        BigDecimal directFee = extractBigDecimal(metadata, "sale_fee_amount", "sale_fee", "saleFee");
         if (directFee != null) {
             return directFee;
         }
 
-        List<Map<String, Object>> rawItemList = resolveRawItemList(metadata);
+        Map<String, Object> officialOrder = resolveOfficialOrder(metadata);
+        directFee = extractBigDecimal(officialOrder, "sale_fee_amount", "sale_fee", "saleFee");
+        if (directFee != null) {
+            return directFee;
+        }
+
+        Map<String, Object> officialSettlement = resolveOfficialSettlement(metadata);
+        directFee = extractBigDecimal(officialSettlement, "sale_fee_amount", "sale_fee", "saleFee");
+        if (directFee != null) {
+            return directFee;
+        }
+        directFee = extractBigDecimal(
+                mapValue(officialSettlement, "shipment_costs"),
+                "sale_fee_amount",
+                "sale_fee",
+                "saleFee"
+        );
+        if (directFee != null) {
+            return directFee;
+        }
+
+        List<Map<String, Object>> rawItemList = resolveRawItemList(officialOrder);
+        if (rawItemList.isEmpty()) {
+            rawItemList = resolveRawItemList(metadata);
+        }
         if (rawItemList != null && !rawItemList.isEmpty()) {
             BigDecimal totalFee = BigDecimal.ZERO;
             boolean foundAny = false;
@@ -176,6 +201,57 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
             }
         }
         return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractSaleFeeDetails(Map<String, Object> metadata) {
+        Map<String, Object> officialSettlement = resolveOfficialSettlement(metadata);
+        Object settlementDetails = officialSettlement.get("sale_fee_details");
+        if (settlementDetails instanceof Map<?, ?> details) {
+            return (Map<String, Object>) details;
+        }
+
+        Map<String, Object> officialOrder = resolveOfficialOrder(metadata);
+        Object directDetails = officialOrder.get("sale_fee_details");
+        if (directDetails instanceof Map<?, ?> details) {
+            return (Map<String, Object>) details;
+        }
+
+        List<Map<String, Object>> items = resolveRawItemList(officialOrder);
+        for (Map<String, Object> item : items) {
+            Object itemDetails = item.get("sale_fee_details");
+            if (itemDetails instanceof Map<?, ?> details) {
+                return (Map<String, Object>) details;
+            }
+        }
+        return Map.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolveOfficialSettlement(Map<String, Object> metadata) {
+        if (metadata == null) {
+            return Map.of();
+        }
+        Object settlement = metadata.get("settlement_financial_details");
+        return settlement instanceof Map<?, ?> settlementMap
+                ? (Map<String, Object>) settlementMap
+                : Map.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolveOfficialOrder(Map<String, Object> metadata) {
+        Object order = resolveOfficialSettlement(metadata).get("order");
+        return order instanceof Map<?, ?> orderMap
+                ? (Map<String, Object>) orderMap
+                : Map.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mapValue(Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        return value instanceof Map<?, ?> map
+                ? (Map<String, Object>) map
+                : Map.of();
     }
 
     @SuppressWarnings("unchecked")

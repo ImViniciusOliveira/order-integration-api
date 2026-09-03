@@ -1,6 +1,8 @@
 package com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator;
 
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeAuditStatus;
+import com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator.model.MercadoLivreFeeCalculationDetails;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.exception.custom.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
@@ -138,5 +140,41 @@ class MercadoLivreFeeCalculatorTest {
 
         assertThat(result.hasDivergence()).isFalse();
         assertThat(result.divergenceReason()).isNull();
+    }
+
+    @Test
+    @DisplayName("Deve preservar os componentes oficiais de sale_fee_details")
+    void shouldPreserveOfficialSaleFeeDetails() {
+        Map<String, Object> orderResponse = Map.of(
+                "sale_fee_amount", 1.50,
+                "sale_fee_details", Map.of(
+                        "financing_add_on_fee", 0.10,
+                        "fixed_fee", 0.20,
+                        "gross_amount", 1.50,
+                        "percentage_fee", 15.0
+                )
+        );
+        OrderMaster order = OrderMaster.builder()
+                .platform("MERCADOLIVRE")
+                .orderSn("2000018236707690")
+                .metadata(Map.of(
+                        "item_list", List.of(Map.of("unit_price", 10.00, "quantity", 1)),
+                        "settlement_financial_details", Map.of("order", orderResponse)
+                ))
+                .build();
+
+        FeeCalculationResult result = calculator.calculate(
+                order,
+                new BigDecimal("8.50"),
+                BigDecimal.ZERO
+        );
+
+        assertThat(result.auditStatus()).isEqualTo(FeeAuditStatus.COMPLETE);
+        MercadoLivreFeeCalculationDetails details =
+                (MercadoLivreFeeCalculationDetails) result.platformDetails();
+        assertThat(details.saleFee()).isEqualByComparingTo("1.50");
+        assertThat(details.percentageFee()).isEqualByComparingTo("15.0");
+        assertThat(details.fixedFee()).isEqualByComparingTo("0.20");
+        assertThat(details.financingAddOnFee()).isEqualByComparingTo("0.10");
     }
 }
