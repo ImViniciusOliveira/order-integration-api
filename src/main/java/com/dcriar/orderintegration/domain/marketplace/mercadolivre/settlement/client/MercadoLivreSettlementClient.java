@@ -72,8 +72,9 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
                     credential.getLiveAccessToken()
             );
             Map<String, Object> shipment = fetchShipment(order, credential.getLiveAccessToken());
+            Map<String, Object> shipmentCosts = fetchShipmentCosts(order, credential.getLiveAccessToken());
             Map<String, Object> payment = fetchPayment(order, credential.getLiveAccessToken());
-            return responseMapper.map(accountId, orderId, order, shipment, payment);
+            return responseMapper.map(accountId, orderId, order, shipment, shipmentCosts, payment);
         } catch (RestClientResponseException exception) {
             SettlementStatus status = exception.getStatusCode().is5xxServerError()
                     || exception.getStatusCode().value() == 429
@@ -110,6 +111,16 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
         return paymentId == null
                 ? Map.of()
                 : get(properties.paymentsPath() + "/" + paymentId, accessToken);
+    }
+
+    private Map<String, Object> fetchShipmentCosts(
+            Map<String, Object> order,
+            String accessToken
+    ) {
+        String shipmentId = stringValue(order, "shipping", "id");
+        return shipmentId == null
+                ? Map.of()
+                : get(properties.shipmentsPath() + "/" + shipmentId + "/costs", accessToken);
     }
 
     @SuppressWarnings("unchecked")

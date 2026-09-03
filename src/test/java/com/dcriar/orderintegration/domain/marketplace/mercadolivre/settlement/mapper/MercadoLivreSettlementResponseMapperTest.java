@@ -26,7 +26,11 @@ class MercadoLivreSettlementResponseMapperTest {
                 "total_amount", 100.00,
                 "order_items", List.of(Map.of("sale_fee", 12.00))
         );
-        Map<String, Object> shipment = Map.of("base_cost", 8.00);
+        Map<String, Object> shipment = Map.of("id", 3001L);
+        Map<String, Object> shipmentCosts = Map.of(
+                "senders", List.of(Map.of("cost", 8.00)),
+                "receivers", List.of(Map.of("cost", 0.00))
+        );
         Map<String, Object> payment = Map.of(
                 "status", "approved",
                 "money_release_date", OffsetDateTime.now().minusDays(1).toString(),
@@ -34,7 +38,9 @@ class MercadoLivreSettlementResponseMapperTest {
                 "fee_details", Map.of("total", 1.50)
         );
 
-        MarketplaceSettlement settlement = mapper.map("seller-1", "2001", order, shipment, payment);
+        MarketplaceSettlement settlement = mapper.map(
+                "seller-1", "2001", order, shipment, shipmentCosts, payment
+        );
 
         assertThat(settlement.status()).isEqualTo(SettlementStatus.AVAILABLE);
         assertThat(settlement.grossAmount()).isEqualByComparingTo("100.00");
@@ -42,6 +48,31 @@ class MercadoLivreSettlementResponseMapperTest {
         assertThat(settlement.commissionAmount()).isEqualByComparingTo("12.00");
         assertThat(settlement.shippingFee()).isEqualByComparingTo("8.00");
         assertThat(settlement.transactionFee()).isEqualByComparingTo("1.50");
+    }
+
+    @Test
+    @DisplayName("Deve ignorar o custo do comprador e usar somente senders.cost")
+    void deveUsarSomenteCustoDoVendedor() {
+        Map<String, Object> payment = Map.of(
+                "status", "approved",
+                "money_release_date", OffsetDateTime.now().minusDays(1).toString(),
+                "transaction_details", Map.of("net_received_amount", 80.00)
+        );
+        Map<String, Object> shipmentCosts = Map.of(
+                "senders", List.of(Map.of("cost", 3.25)),
+                "receivers", List.of(Map.of("cost", 9.99))
+        );
+
+        MarketplaceSettlement settlement = mapper.map(
+                "seller-1",
+                "2001",
+                Map.of("total_amount", 100.00),
+                Map.of(),
+                shipmentCosts,
+                payment
+        );
+
+        assertThat(settlement.shippingFee()).isEqualByComparingTo("3.25");
     }
 
     @Test

@@ -27,6 +27,7 @@ public class MercadoLivreSettlementResponseMapper {
      * @param orderId identificador do pedido
      * @param order    resposta do recurso de pedidos
      * @param shipment resposta do recurso de envios, quando disponível
+     * @param shipmentCosts custos oficiais do envio, quando disponíveis
      * @param payment  resposta detalhada do pagamento, quando disponível
      * @return settlement normalizado
      */
@@ -35,17 +36,19 @@ public class MercadoLivreSettlementResponseMapper {
             String orderId,
             Map<String, Object> order,
             Map<String, Object> shipment,
+            Map<String, Object> shipmentCosts,
             Map<String, Object> payment
     ) {
         Map<String, Object> financialDetails = new LinkedHashMap<>();
         financialDetails.put("order", safeMap(order));
         financialDetails.put("shipment", safeMap(shipment));
+        financialDetails.put("shipment_costs", safeMap(shipmentCosts));
         financialDetails.put("payment", safeMap(payment));
 
         BigDecimal netAmount = decimalValue(payment, "transaction_details", "net_received_amount");
         BigDecimal grossAmount = decimalValue(order, "total_amount");
         BigDecimal commissionAmount = sumSaleFees(order);
-        BigDecimal shippingFee = firstDecimal(shipment, "base_cost", "shipping_option", "list_cost");
+        BigDecimal shippingFee = sumSenderCosts(shipmentCosts);
         BigDecimal transactionFee = decimalValue(payment, "fee_details", "total");
 
         String pendingReason = pendingReason(payment, netAmount);
@@ -68,6 +71,26 @@ public class MercadoLivreSettlementResponseMapper {
                 OffsetDateTime.now(),
                 null
         );
+    }
+
+    /**
+     * Mantem compatibilidade para consumidores que ainda nao fornecem os custos do shipment.
+     *
+     * @param accountId identificador da conta consultada
+     * @param orderId identificador do pedido
+     * @param order resposta do pedido
+     * @param shipment resposta do envio
+     * @param payment resposta do pagamento
+     * @return settlement normalizado sem custo oficial de envio
+     */
+    public MarketplaceSettlement map(
+            String accountId,
+            String orderId,
+            Map<String, Object> order,
+            Map<String, Object> shipment,
+            Map<String, Object> payment
+    ) {
+        return map(accountId, orderId, order, shipment, Map.of(), payment);
     }
 
     private MarketplaceSettlement pending(
@@ -128,14 +151,30 @@ public class MercadoLivreSettlementResponseMapper {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal firstDecimal(Map<String, Object> source, String... path) {
-        for (int index = 0; index < path.length; index++) {
-            BigDecimal value = decimalValue(source, java.util.Arrays.copyOf(path, index + 1));
-            if (value != null) {
-                return value;
+    private BigDecimal sumSenderCosts(Map<String, Object> shipmentCosts) {
+        Object senders = shipmentCosts.get("senders");
+        if (!(senders instanceof List<?> list)) {
+            return null;
+        }
+
+        BigDecimal total = BigDecimal.ZERO;
+        boolean found = false;
+        for (Object sender : list) {
+            if (!(sender instanceof Map<?, ?> senderMap)) {
+                continue;
+            }
+            Object cost = senderMap.get("cost");
+            if (cost == null) {
+                continue;
+            }
+            try {
+                total = total.add(new BigDecimal(cost.toString()));
+                found = true;
+            } catch (NumberFormatException ignored) {
+                // Valores inválidos não podem ser usados como custo financeiro.
             }
         }
-        return null;
+        return found ? total : null;
     }
 
     private BigDecimal decimalValue(Map<String, Object> source, String... path) {
