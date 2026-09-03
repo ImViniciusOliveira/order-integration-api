@@ -71,7 +71,9 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
         payload.put("shop_id", order.getShopId());
         payload.put("subtotal", subtotal != null ? subtotal : BigDecimal.ZERO);
         payload.put("escrow_amount", escrowAmount != null ? escrowAmount : BigDecimal.ZERO);
+        payload.put("financial_audit_status", order.getFinancialAuditStatus());
         payload.put("auditoria_financeira", audit);
+        payload.put("divergencia_financeira", asObjectMap(audit.get("divergencia_financeira")));
 
         try {
             log.info("Disparando webhook de conciliação finalizada para o n8n: url='{}', pedido='{}'", webhookUrl, order.getOrderSn());
