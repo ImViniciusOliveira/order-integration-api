@@ -131,6 +131,14 @@ class EscrowReconciliationServiceTest {
         assertThat(auditoria).isNotNull();
         assertThat(auditoria.get("versao_regra")).isEqualTo("SHOPEE_OFFICIAL_ORDER_INCOME");
         assertThat(auditoria.get("has_divergence")).isEqualTo(false);
+        assertThat(order.getMetadata()).containsKey("snapshot_financeiro");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> snapshot =
+                (Map<String, Object>) order.getMetadata().get("snapshot_financeiro");
+        assertThat(snapshot.get("plataforma")).isEqualTo("SHOPEE");
+        assertThat(snapshot.get("valor_liquido")).isEqualTo(new BigDecimal("76.00"));
+        assertThat(snapshot).containsKey("detalhes_externos");
 
         verify(orderMasterRepository).save(order);
         verify(delayQueueService).remove("SHOPEE", "240828ABC");

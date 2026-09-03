@@ -130,6 +130,7 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
                 order.getMetadata() != null ? order.getMetadata() : Map.of()
         );
         settlementMetadata.put("settlement_financial_details", settlement.financialDetails());
+        settlementMetadata.put("snapshot_financeiro", buildFinancialSnapshot(settlement));
         order.setMetadata(settlementMetadata);
 
         BigDecimal subtotalCalculated = BigDecimal.ZERO;
@@ -214,5 +215,22 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
                 ));
 
         return client.fetchSettlement(order.getShopId(), order.getOrderSn());
+    }
+
+    private Map<String, Object> buildFinancialSnapshot(MarketplaceSettlement settlement) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("plataforma", settlement.platform());
+        snapshot.put("pedido", settlement.orderId());
+        snapshot.put("conta", settlement.accountId());
+        snapshot.put("status", settlement.status().name());
+        snapshot.put("consultado_em", settlement.queriedAt());
+        snapshot.put("valor_bruto", settlement.grossAmount());
+        snapshot.put("valor_liquido", settlement.netAmount());
+        snapshot.put("comissao", settlement.commissionAmount());
+        snapshot.put("taxa_transacao", settlement.transactionFee());
+        snapshot.put("frete_vendedor", settlement.shippingFee());
+        snapshot.put("outras_taxas", settlement.externalFees());
+        snapshot.put("detalhes_externos", settlement.financialDetails());
+        return snapshot;
     }
 }
