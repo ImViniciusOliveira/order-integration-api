@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
@@ -74,9 +75,13 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("platform", order.getPlatform());
         payload.put("order_sn", order.getOrderSn());
+        payload.put("shop_id", order.getShopId());
         payload.put("subtotal", subtotal != null ? subtotal : BigDecimal.ZERO);
         payload.put("escrow_amount", escrowAmount != null ? escrowAmount : BigDecimal.ZERO);
         payload.put("has_divergence", hasDivergence);
+        payload.put("auditoria_financeira", order.getMetadata() != null
+                ? order.getMetadata().get("auditoria_financeira")
+                : Map.of());
 
         try {
             log.info("Disparando webhook de conciliação finalizada para o n8n: url='{}', pedido='{}'", webhookUrl, order.getOrderSn());
@@ -87,7 +92,7 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
                     .retrieve()
                     .toBodilessEntity();
             log.info("Notificação de conciliação entregue com sucesso ao n8n para o pedido '{}'.", order.getOrderSn());
-        } catch (Exception e) {
+        } catch (RestClientException e) {
             log.warn("Falha ao entregar notificação de conciliação ao n8n para o pedido '{}': {}", order.getOrderSn(), e.getMessage());
         }
     }
