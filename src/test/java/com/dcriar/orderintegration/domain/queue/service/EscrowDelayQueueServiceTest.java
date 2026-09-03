@@ -32,6 +32,9 @@ class EscrowDelayQueueServiceTest {
     @Mock
     private ZSetOperations<String, String> zSetOperations;
 
+    @Mock
+    private org.springframework.data.redis.core.ValueOperations<String, String> valueOperations;
+
     private EscrowDelayQueueService delayQueueService;
 
     @BeforeEach
@@ -52,6 +55,7 @@ class EscrowDelayQueueServiceTest {
         );
 
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         delayQueueService = new EscrowDelayQueueServiceImpl(redisTemplate, properties);
     }
 
@@ -121,5 +125,13 @@ class EscrowDelayQueueServiceTest {
 
         // Assert
         verify(zSetOperations, times(1)).remove("dcriar:orders:escrow_delay_queue", expectedMember);
+    }
+
+    @Test
+    void deveIncrementarTentativaDeConciliacao() {
+        when(valueOperations.increment("dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"))
+                .thenReturn(2L);
+
+        assertThat(delayQueueService.incrementRetry("SHOPEE", "240828ABC123")).isEqualTo(2L);
     }
 }

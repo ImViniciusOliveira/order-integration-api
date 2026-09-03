@@ -36,6 +36,31 @@ public interface EscrowDelayQueueService {
     void remove(String platform, String orderSn);
 
     /**
+     * Incrementa a quantidade de tentativas de conciliação de um pedido.
+     *
+     * @param platform código do marketplace
+     * @param orderSn número do pedido
+     * @return quantidade atualizada de tentativas
+     */
+    long incrementRetry(String platform, String orderSn);
+
+    /**
+     * Limpa o contador de tentativas após o encerramento do processamento.
+     *
+     * @param platform código do marketplace
+     * @param orderSn número do pedido
+     */
+    void clearRetry(String platform, String orderSn);
+
+    /**
+     * Move o pedido para a fila de quarentena de falhas definitivas ou excedentes.
+     *
+     * @param platform código do marketplace
+     * @param orderSn número do pedido
+     */
+    void moveToDeadLetterQueue(String platform, String orderSn);
+
+    /**
      * Retorna a chave configurada da fila de atraso no Redis.
      *
      * @return nome da chave no Redis

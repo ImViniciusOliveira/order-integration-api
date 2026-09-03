@@ -258,7 +258,7 @@ class EscrowReconciliationServiceTest {
         boolean result = reconciliationService.reconcileOrder("SHOPEE", "PERMANENT_ERROR_SN");
 
         assertThat(result).isFalse();
-        verify(delayQueueService).remove("SHOPEE", "PERMANENT_ERROR_SN");
+        verify(delayQueueService).moveToDeadLetterQueue("SHOPEE", "PERMANENT_ERROR_SN");
         verify(delayQueueService, never()).scheduleReconciliation(anyString(), anyString(), any());
         verify(orderMasterRepository, never()).save(any());
     }

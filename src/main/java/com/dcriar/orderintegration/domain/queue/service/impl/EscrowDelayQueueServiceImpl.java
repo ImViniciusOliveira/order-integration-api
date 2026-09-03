@@ -21,6 +21,9 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class EscrowDelayQueueServiceImpl implements EscrowDelayQueueService {
 
+    private static final String RETRY_SUFFIX = ":retries";
+    private static final String DEAD_LETTER_SUFFIX = ":dlq";
+
     private final StringRedisTemplate redisTemplate;
     private final OrderIntegrationProperties properties;
 
@@ -63,10 +66,40 @@ public class EscrowDelayQueueServiceImpl implements EscrowDelayQueueService {
     }
 
     @Override
+    public long incrementRetry(String platform, String orderSn) {
+        String member = EscrowDelayQueueService.buildQueueMember(platform, orderSn);
+        Long count = redisTemplate.opsForValue().increment(getRetryKey(member));
+        return count == null ? 0L : count;
+    }
+
+    @Override
+    public void clearRetry(String platform, String orderSn) {
+        String member = EscrowDelayQueueService.buildQueueMember(platform, orderSn);
+        redisTemplate.delete(getRetryKey(member));
+    }
+
+    @Override
+    public void moveToDeadLetterQueue(String platform, String orderSn) {
+        String member = EscrowDelayQueueService.buildQueueMember(platform, orderSn);
+        redisTemplate.opsForZSet().add(getDeadLetterQueueKey(), member, System.currentTimeMillis());
+        remove(platform, orderSn);
+        clearRetry(platform, orderSn);
+        log.error("Pedido {} movido para a DLQ Redis '{}'.", member, getDeadLetterQueueKey());
+    }
+
+    @Override
     public String getQueueKey() {
         if (properties != null && properties.redis() != null && properties.redis().escrowQueueKey() != null) {
             return properties.redis().escrowQueueKey();
         }
         return "dcriar:orders:escrow_delay_queue";
+    }
+
+    private String getRetryKey(String member) {
+        return getQueueKey() + RETRY_SUFFIX + ":" + member;
+    }
+
+    private String getDeadLetterQueueKey() {
+        return getQueueKey() + DEAD_LETTER_SUFFIX;
     }
 }

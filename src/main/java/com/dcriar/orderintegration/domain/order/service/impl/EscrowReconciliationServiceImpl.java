@@ -110,6 +110,7 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
         if (order.isReconciled()) {
             log.info("Pedido '{}:{}' já se encontra conciliado. Removendo da fila do Redis.", normalizedPlatform, normalizedOrderSn);
             delayQueueService.remove(normalizedPlatform, normalizedOrderSn);
+            delayQueueService.clearRetry(normalizedPlatform, normalizedOrderSn);
             return true;
         }
 
@@ -150,6 +151,7 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
         order.conciliarEscrow(settlement.netAmount(), settlement.shippingFee());
         OrderMaster savedOrder = orderMasterRepository.save(order);
         delayQueueService.remove(normalizedPlatform, normalizedOrderSn);
+        delayQueueService.clearRetry(normalizedPlatform, normalizedOrderSn);
 
         log.info("Pedido '{}:{}' conciliado com sucesso: repasse líquido={}, frete cobrado do vendedor={}",
                 normalizedPlatform, normalizedOrderSn, settlement.netAmount(), settlement.shippingFee());
@@ -164,9 +166,20 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
 
     private void handleUnavailableSettlement(String platform, String orderSn, SettlementStatus status) {
         if (status == SettlementStatus.PERMANENT_ERROR) {
-            delayQueueService.remove(platform, orderSn);
+            delayQueueService.moveToDeadLetterQueue(platform, orderSn);
             log.error("Settlement do pedido '{}:{}' falhou definitivamente. Item removido da fila.",
                     platform, orderSn);
+            return;
+        }
+
+        int maxRetries = (properties != null && properties.escrow() != null)
+                ? properties.escrow().maxRetries()
+                : 5;
+        long retryCount = delayQueueService.incrementRetry(platform, orderSn);
+        if (retryCount > maxRetries) {
+            delayQueueService.moveToDeadLetterQueue(platform, orderSn);
+            log.error("Pedido '{}:{}' excedeu o limite de {} tentativas e foi movido para a DLQ.",
+                    platform, orderSn, maxRetries);
             return;
         }
 
