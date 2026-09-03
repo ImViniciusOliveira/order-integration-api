@@ -1,6 +1,8 @@
 package com.dcriar.orderintegration.domain.queue.service.impl;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
+import com.dcriar.orderintegration.domain.queue.entity.EscrowDeadLetterEntry;
+import com.dcriar.orderintegration.domain.queue.repository.EscrowDeadLetterRepository;
 import com.dcriar.orderintegration.domain.queue.service.EscrowDelayQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ public class EscrowDelayQueueServiceImpl implements EscrowDelayQueueService {
 
     private final StringRedisTemplate redisTemplate;
     private final OrderIntegrationProperties properties;
+    private final EscrowDeadLetterRepository deadLetterRepository;
 
     @Override
     public void scheduleReconciliation(String platform, String orderSn, Duration delay) {
@@ -81,6 +84,13 @@ public class EscrowDelayQueueServiceImpl implements EscrowDelayQueueService {
     @Override
     public void moveToDeadLetterQueue(String platform, String orderSn) {
         String member = EscrowDelayQueueService.buildQueueMember(platform, orderSn);
+        long attempts = readRetryCount(member);
+        deadLetterRepository.save(EscrowDeadLetterEntry.create(
+                platform,
+                orderSn,
+                "ESCROW_PERMANENT_FAILURE",
+                attempts
+        ));
         redisTemplate.opsForZSet().add(getDeadLetterQueueKey(), member, System.currentTimeMillis());
         remove(platform, orderSn);
         clearRetry(platform, orderSn);
@@ -101,5 +111,18 @@ public class EscrowDelayQueueServiceImpl implements EscrowDelayQueueService {
 
     private String getDeadLetterQueueKey() {
         return getQueueKey() + DEAD_LETTER_SUFFIX;
+    }
+
+    private long readRetryCount(String member) {
+        String value = redisTemplate.opsForValue().get(getRetryKey(member));
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException exception) {
+            log.warn("Contador de tentativas inválido para o pedido '{}': {}", member, value);
+            return 0L;
+        }
     }
 }

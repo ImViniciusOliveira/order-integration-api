@@ -1,12 +1,15 @@
 package com.dcriar.orderintegration.domain.queue.service;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
+import com.dcriar.orderintegration.domain.queue.entity.EscrowDeadLetterEntry;
+import com.dcriar.orderintegration.domain.queue.repository.EscrowDeadLetterRepository;
 import com.dcriar.orderintegration.domain.queue.service.impl.EscrowDelayQueueServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -33,6 +36,9 @@ class EscrowDelayQueueServiceTest {
     private ZSetOperations<String, String> zSetOperations;
 
     @Mock
+    private EscrowDeadLetterRepository deadLetterRepository;
+
+    @Mock
     private org.springframework.data.redis.core.ValueOperations<String, String> valueOperations;
 
     private EscrowDelayQueueService delayQueueService;
@@ -57,7 +63,7 @@ class EscrowDelayQueueServiceTest {
 
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        delayQueueService = new EscrowDelayQueueServiceImpl(redisTemplate, properties);
+        delayQueueService = new EscrowDelayQueueServiceImpl(redisTemplate, properties, deadLetterRepository);
     }
 
     @Test
@@ -134,5 +140,34 @@ class EscrowDelayQueueServiceTest {
                 .thenReturn(2L);
 
         assertThat(delayQueueService.incrementRetry("SHOPEE", "240828ABC123")).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("Deve persistir o pedido na DLQ antes de movê-lo no Redis")
+    void devePersistirPedidoNaDlq() {
+        when(valueOperations.get("dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"))
+                .thenReturn("5");
+        when(zSetOperations.add(
+                eq("dcriar:orders:escrow_delay_queue:dlq"),
+                eq("SHOPEE:240828ABC123"),
+                anyDouble()
+        )).thenReturn(Boolean.TRUE);
+
+        delayQueueService.moveToDeadLetterQueue("SHOPEE", "240828ABC123");
+
+        ArgumentCaptor<EscrowDeadLetterEntry> captor =
+                ArgumentCaptor.forClass(EscrowDeadLetterEntry.class);
+        verify(deadLetterRepository).save(captor.capture());
+        assertThat(captor.getValue().getPlatform()).isEqualTo("SHOPEE");
+        assertThat(captor.getValue().getOrderSn()).isEqualTo("240828ABC123");
+        assertThat(captor.getValue().getAttempts()).isEqualTo(5L);
+        verify(zSetOperations).add(
+                eq("dcriar:orders:escrow_delay_queue:dlq"),
+                eq("SHOPEE:240828ABC123"),
+                anyDouble()
+        );
+        verify(redisTemplate).delete(
+                "dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"
+        );
     }
 }
