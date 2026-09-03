@@ -212,6 +212,93 @@ class EscrowReconciliationServiceTest {
     }
 
     @Test
+    @DisplayName("Deve conciliar pedido e marcar divergência quando o repasse não fechar com a prova real")
+    void deveMarcarDivergenciaQuandoRepasseDiferirDaProvaReal() {
+        OrderMaster order = OrderMaster.builder()
+                .platform("SHOPEE")
+                .shopId("123")
+                .orderSn("DIVERGENCE_SN")
+                .status("COMPLETED")
+                .reconciled(false)
+                .metadata(Map.of(
+                        "item_list", List.of(Map.of(
+                                "item_name", "Produto Divergente",
+                                "model_discounted_price", "100.00",
+                                "model_quantity_purchased", 1
+                        ))
+                ))
+                .build();
+
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "DIVERGENCE_SN"))
+                .thenReturn(Optional.of(order));
+        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
+        when(shopeeSettlementClient.supports("SHOPEE")).thenReturn(true);
+        when(shopeeSettlementClient.fetchSettlement("123", "DIVERGENCE_SN")).thenReturn(
+                availableSettlement("SHOPEE", "DIVERGENCE_SN", "123", "80.00", "0.00")
+        );
+
+        boolean result = reconciliationService.reconcileOrder("SHOPEE", "DIVERGENCE_SN");
+
+        assertThat(result).isTrue();
+        assertThat(order.isReconciled()).isTrue();
+        assertThat(order.getFinancialAuditStatus()).isEqualTo(FinancialAuditStatus.RECONCILED_WITH_DIVERGENCE);
+        assertThat(order.getMetadata()).containsKeys("auditoria_financeira", "snapshot_financeiro");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> audit = (Map<String, Object>) order.getMetadata().get("auditoria_financeira");
+        assertThat(audit).containsEntry("has_divergence", true);
+        verify(orderMasterRepository).save(order);
+        verify(delayQueueService).remove("SHOPEE", "DIVERGENCE_SN");
+        verify(notificationService).notifyReconciliationCompleted(
+                eq(order),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("100.00")) == 0),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("80.00")) == 0)
+        );
+    }
+
+    @Test
+    @DisplayName("Deve marcar auditoria incompleta e reagendar quando faltarem dados oficiais")
+    void deveReagendarQuandoAuditoriaEstiverIncompleta() {
+        OrderMaster order = OrderMaster.builder()
+                .platform("SHOPEE")
+                .shopId("123")
+                .orderSn("INCOMPLETE_AUDIT_SN")
+                .status("COMPLETED")
+                .reconciled(false)
+                .metadata(Map.of(
+                        "item_list", List.of(Map.of(
+                                "item_name", "Produto Sem Extrato",
+                                "model_discounted_price", "100.00",
+                                "model_quantity_purchased", 1
+                        ))
+                ))
+                .build();
+
+        when(orderMasterRepository.findByPlatformAndOrderSn("SHOPEE", "INCOMPLETE_AUDIT_SN"))
+                .thenReturn(Optional.of(order));
+        when(orderMasterRepository.save(any(OrderMaster.class))).thenAnswer(i -> i.getArgument(0));
+        when(shopeeSettlementClient.supports("SHOPEE")).thenReturn(true);
+        when(shopeeSettlementClient.fetchSettlement("123", "INCOMPLETE_AUDIT_SN")).thenReturn(
+                new MarketplaceSettlement(
+                        SettlementStatus.AVAILABLE, "SHOPEE", "INCOMPLETE_AUDIT_SN", "123",
+                        null, new BigDecimal("76.00"), null, null, BigDecimal.ZERO, null,
+                        Map.of(), null, null
+                )
+        );
+
+        boolean result = reconciliationService.reconcileOrder("SHOPEE", "INCOMPLETE_AUDIT_SN");
+
+        assertThat(result).isFalse();
+        assertThat(order.isReconciled()).isFalse();
+        assertThat(order.getFinancialAuditStatus()).isEqualTo(FinancialAuditStatus.AUDIT_INCOMPLETE);
+        verify(orderMasterRepository).save(order);
+        verify(delayQueueService).scheduleReconciliation(
+                "SHOPEE", "INCOMPLETE_AUDIT_SN", Duration.ofMinutes(30)
+        );
+        verify(delayQueueService, never()).remove("SHOPEE", "INCOMPLETE_AUDIT_SN");
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
     @DisplayName("Deve reagendar conciliação com retry quando pedido estiver pendente de extrato")
     void deveReagendarConciliacaoQuandoPendente() {
         // Arrange
