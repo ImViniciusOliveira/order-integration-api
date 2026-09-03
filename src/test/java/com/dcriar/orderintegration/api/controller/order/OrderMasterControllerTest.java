@@ -69,8 +69,8 @@ class OrderMasterControllerTest {
     @DisplayName("GET /api/v1/orders - Deve retornar listagem paginada de pedidos com status 200 OK")
     void deveRetornarListagemPaginadaDePedidos() {
         // Arrange
-        OrderFilterRequest filter = new OrderFilterRequest("SHOPEE", null, null, null, null, null, null, null);
-        OrderFilterCriteria criteria = new OrderFilterCriteria("SHOPEE", null, null, null, null, null, null, null);
+        OrderFilterRequest filter = new OrderFilterRequest("SHOPEE", null, null, null, null, null, null, null, null);
+        OrderFilterCriteria criteria = new OrderFilterCriteria("SHOPEE", null, null, null, null, null, null, null, null);
         Pageable pageable = PageRequest.of(0, 20);
 
         OrderMaster entity = OrderMaster.builder()

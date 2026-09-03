@@ -2,6 +2,7 @@ package com.dcriar.orderintegration.domain.order.specification;
 
 import com.dcriar.orderintegration.domain.common.PostgresSearchUtils;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.OffsetDateTime;
@@ -72,6 +73,21 @@ public final class OrderMasterSpecifications {
                 return cb.conjunction();
             }
             return cb.equal(root.get("reconciled"), reconciled);
+        };
+    }
+
+    /**
+     * Filtra pedidos pelo estado detalhado da auditoria financeira.
+     *
+     * @param financialAuditStatus estado da auditoria a ser filtrado
+     * @return Specification correspondente
+     */
+    public static Specification<OrderMaster> byFinancialAuditStatus(FinancialAuditStatus financialAuditStatus) {
+        return (root, query, cb) -> {
+            if (financialAuditStatus == null) {
+                return cb.conjunction();
+            }
+            return cb.equal(root.get("financialAuditStatus"), financialAuditStatus);
         };
     }
 

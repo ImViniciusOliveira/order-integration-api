@@ -1,5 +1,6 @@
 package com.dcriar.orderintegration.api.dto.filter;
 
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -12,6 +13,7 @@ import java.time.OffsetDateTime;
  * @param shopId     filtro opcional por loja
  * @param status     filtro opcional por status do pedido
  * @param reconciled filtro opcional por estado de conciliação
+ * @param financialAuditStatus filtro opcional por estado detalhado da auditoria financeira
  * @param orderSn    filtro opcional por número do pedido
  * @param trackingNo filtro opcional por código de rastreamento
  * @param startDate  data/hora inicial de criação (formato ISO 8601)
@@ -30,6 +32,9 @@ public record OrderFilterRequest(
 
         @Schema(description = "Filtro por pedidos já conciliados financeiramente", example = "false")
         Boolean reconciled,
+
+        @Schema(description = "Estado detalhado da auditoria financeira", example = "RECONCILED_WITH_DIVERGENCE")
+        FinancialAuditStatus financialAuditStatus,
 
         @Schema(description = "Código único do pedido no marketplace", example = "260828ABC123XYZ")
         String orderSn,

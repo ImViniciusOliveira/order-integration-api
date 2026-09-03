@@ -44,6 +44,7 @@ public class OrderMasterServiceImpl implements OrderMasterService {
                     .and(OrderMasterSpecifications.byShopId(criteria.shopId()))
                     .and(OrderMasterSpecifications.byStatus(criteria.status()))
                     .and(OrderMasterSpecifications.byReconciled(criteria.reconciled()))
+                    .and(OrderMasterSpecifications.byFinancialAuditStatus(criteria.financialAuditStatus()))
                     .and(OrderMasterSpecifications.byOrderSn(criteria.orderSn()))
                     .and(OrderMasterSpecifications.byTrackingNo(criteria.trackingNo()))
                     .and(OrderMasterSpecifications.byCreatedAtBetween(criteria.startDate(), criteria.endDate()));

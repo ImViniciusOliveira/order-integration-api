@@ -4,6 +4,7 @@ import com.dcriar.orderintegration.api.dto.filter.OrderFilterRequest;
 import com.dcriar.orderintegration.api.dto.response.OrderMasterResponse;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import com.dcriar.orderintegration.domain.order.model.OrderFilterCriteria;
+import com.dcriar.orderintegration.domain.order.model.FinancialAuditStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
@@ -80,7 +81,8 @@ class OrderMasterMapperTest {
         // Arrange
         OffsetDateTime now = OffsetDateTime.now();
         OrderFilterRequest request = new OrderFilterRequest(
-                "SHOPEE", "12345", "COMPLETED", true, "SN123", "TRK123", now.minusDays(1), now
+                "SHOPEE", "12345", "COMPLETED", true, FinancialAuditStatus.RECONCILED_WITH_DIVERGENCE,
+                "SN123", "TRK123", now.minusDays(1), now
         );
 
         // Act
@@ -92,6 +94,7 @@ class OrderMasterMapperTest {
         assertThat(criteria.shopId()).isEqualTo("12345");
         assertThat(criteria.status()).isEqualTo("COMPLETED");
         assertThat(criteria.reconciled()).isTrue();
+        assertThat(criteria.financialAuditStatus()).isEqualTo(FinancialAuditStatus.RECONCILED_WITH_DIVERGENCE);
         assertThat(criteria.orderSn()).isEqualTo("SN123");
         assertThat(criteria.trackingNo()).isEqualTo("TRK123");
         assertThat(criteria.startDate()).isEqualTo(now.minusDays(1));
