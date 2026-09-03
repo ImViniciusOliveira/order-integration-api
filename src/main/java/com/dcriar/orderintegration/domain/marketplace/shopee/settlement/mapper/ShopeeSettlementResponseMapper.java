@@ -46,7 +46,12 @@ public class ShopeeSettlementResponseMapper {
             financialDetails.put("income_details", incomeDetails);
         }
 
-        BigDecimal shippingFee = decimalValue(incomeDetails, "shipping_fee_borne_by_seller");
+        BigDecimal shippingFee = firstDecimal(
+                incomeDetails,
+                "shipping_fee_borne_by_seller",
+                "actual_shipping_fee",
+                "final_shipping_fee"
+        );
         return new MarketplaceSettlement(
                 SettlementStatus.AVAILABLE,
                 ShopeeSettlementClient.PLATFORM_CODE,
@@ -55,9 +60,9 @@ public class ShopeeSettlementResponseMapper {
                 decimalValue(financialResponse, "buyer_total_amount"),
                 netAmount,
                 decimalValue(financialResponse, "commission_fee"),
-                decimalValue(financialResponse, "transaction_fee"),
+                decimalValue(financialResponse, "seller_transaction_fee"),
                 shippingFee != null ? shippingFee : BigDecimal.ZERO,
-                null,
+                decimalValue(financialResponse, "service_fee"),
                 financialDetails,
                 OffsetDateTime.now(),
                 null
@@ -108,6 +113,7 @@ public class ShopeeSettlementResponseMapper {
         if (source == null) {
             return null;
         }
+
         Object value = source.get(key);
         if (value == null) {
             return null;
@@ -117,5 +123,15 @@ public class ShopeeSettlementResponseMapper {
         } catch (NumberFormatException exception) {
             return null;
         }
+    }
+
+    private BigDecimal firstDecimal(Map<String, Object> source, String... keys) {
+        for (String key : keys) {
+            BigDecimal value = decimalValue(source, key);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 }

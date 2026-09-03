@@ -26,8 +26,9 @@ class ShopeeSettlementResponseMapperTest {
                                         "buyer_total_amount", "68.40",
                                         "escrow_amount", "50.72",
                                         "commission_fee", "9.58",
-                                        "transaction_fee", "4.10",
-                                        "income_details", Map.of("shipping_fee_borne_by_seller", "0.00")
+                                        "seller_transaction_fee", "4.10",
+                                        "service_fee", "1.25",
+                                        "income_details", Map.of("actual_shipping_fee", "2.30")
                                 )
                         )
                 )
@@ -35,7 +36,9 @@ class ShopeeSettlementResponseMapperTest {
 
         assertThat(settlement.status()).isEqualTo(SettlementStatus.AVAILABLE);
         assertThat(settlement.netAmount()).isEqualByComparingTo("50.72");
-        assertThat(settlement.shippingFee()).isEqualByComparingTo("0.00");
+        assertThat(settlement.shippingFee()).isEqualByComparingTo("2.30");
+        assertThat(settlement.transactionFee()).isEqualByComparingTo("4.10");
+        assertThat(settlement.externalFees()).isEqualByComparingTo("1.25");
         assertThat(settlement.financialDetails()).containsKey("income_details");
     }
 
