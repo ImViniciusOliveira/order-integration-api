@@ -129,7 +129,7 @@ class EscrowReconciliationServiceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> auditoria = (Map<String, Object>) order.getMetadata().get("auditoria_financeira");
         assertThat(auditoria).isNotNull();
-        assertThat(auditoria.get("versao_regra")).isEqualTo("SHOPEE_CPF_BR_2026");
+        assertThat(auditoria.get("versao_regra")).isEqualTo("SHOPEE_OFFICIAL_ORDER_INCOME");
         assertThat(auditoria.get("has_divergence")).isEqualTo(false);
 
         verify(orderMasterRepository).save(order);
@@ -323,6 +323,16 @@ class EscrowReconciliationServiceTest {
             String netAmount,
             String shippingFee
     ) {
+        Map<String, Object> financialDetails = platform.equals("SHOPEE")
+                ? Map.of(
+                        "order_income", Map.of(
+                                "commission_fee", "24.00",
+                                "service_fee", "0.00",
+                                "seller_transaction_fee", "0.00",
+                                "income_details", Map.of("actual_shipping_fee", shippingFee)
+                        )
+                )
+                : Map.of();
         return new MarketplaceSettlement(
                 SettlementStatus.AVAILABLE,
                 platform,
@@ -334,7 +344,7 @@ class EscrowReconciliationServiceTest {
                 null,
                 new BigDecimal(shippingFee),
                 null,
-                Map.of(),
+                financialDetails,
                 null,
                 null
         );

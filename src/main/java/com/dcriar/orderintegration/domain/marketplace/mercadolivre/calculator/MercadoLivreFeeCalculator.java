@@ -2,6 +2,7 @@ package com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator;
 
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.MarketplaceFeeCalculator;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationItem;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeAuditStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.calculator.model.MercadoLivreFeeCalculationDetails;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
@@ -21,14 +22,7 @@ import java.util.Map;
  * Implementação Strategy das regras matemáticas e de conciliação financeira do Mercado Livre Brasil.
  * <p>
  * Regras aplicadas (Tabela Oficial Mercado Livre Brasil):
- * <ul>
- *   <li>Comissão Direta: Extração prioritária da taxa oficial calculada por item ({@code sale_fee}),
- *       ou aplicação da taxa padrão de categoria (11,5% clássico / 16% premium).</li>
- *   <li>Custo Fixo por Unidade: Itens com valor estritamente abaixo de R$ 79,00 possuem taxa fixa unitária
- *       caso não tenham sido embutidos no {@code sale_fee} pela API oficial.</li>
- *   <li>Dedução de Frete: Desconto do frete suportado pelo vendedor (se cobrado no extrato).</li>
- *   <li>Tolerância de Arredondamento: R$ 0,05 para compensação de microcentavos bancários.</li>
- * </ul>
+ * <p>Usa somente a comissão oficial {@code sale_fee} retornada pelo Mercado Livre.
  */
 @Slf4j
 @Component
@@ -37,8 +31,6 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
     public static final String PLATFORM_CODE = "MERCADOLIVRE";
     public static final String RULE_VERSION = "MERCADOLIVRE_BR_2026";
 
-    private static final BigDecimal DEFAULT_COMMISSION_RATE = new BigDecimal("0.1150");
-    private static final BigDecimal LOW_VALUE_THRESHOLD_79 = new BigDecimal("79.0000");
     private static final BigDecimal TOLERANCE_AMOUNT = new BigDecimal("0.05");
 
     @Override
@@ -56,7 +48,6 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
 
         BigDecimal subtotalItems = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
         int totalQuantityItems = 0;
-        BigDecimal extractedSaleFeeTotal = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
 
         for (FeeCalculationItem item : auditedItems) {
             subtotalItems = subtotalItems.add(item.subtotal());
@@ -66,16 +57,11 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
         // Tentar extrair a comissão exata informada pela API do Mercado Livre (sale_fee)
         BigDecimal saleFeeFromPayload = extractSaleFeeFromMetadata(order.getMetadata());
         BigDecimal totalMarketplaceFees;
-        BigDecimal baseCommission;
-        BigDecimal fixedItemFee = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
 
-        if (saleFeeFromPayload != null && saleFeeFromPayload.compareTo(BigDecimal.ZERO) > 0) {
-            totalMarketplaceFees = saleFeeFromPayload.setScale(4, RoundingMode.HALF_EVEN);
-            baseCommission = totalMarketplaceFees;
-        } else {
-            baseCommission = subtotalItems.multiply(DEFAULT_COMMISSION_RATE).setScale(4, RoundingMode.HALF_EVEN);
-            totalMarketplaceFees = baseCommission;
+        if (saleFeeFromPayload == null) {
+            return incompleteResult(subtotalItems, totalQuantityItems, auditedItems);
         }
+        totalMarketplaceFees = saleFeeFromPayload.setScale(4, RoundingMode.HALF_EVEN);
 
         BigDecimal transactionFee = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
         BigDecimal lowValueSurchargeTotal = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
@@ -119,6 +105,7 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
         return new FeeCalculationResult(
                 RULE_VERSION,
                 OffsetDateTime.now(),
+                FeeAuditStatus.COMPLETE,
                 hasDivergence,
                 TOLERANCE_AMOUNT.setScale(2, RoundingMode.HALF_EVEN),
                 subtotalItems.setScale(2, RoundingMode.HALF_EVEN),
@@ -131,10 +118,35 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
                 auditedItems,
                 new MercadoLivreFeeCalculationDetails(
                         saleFeeFromPayload,
-                        baseCommission.setScale(2, RoundingMode.HALF_EVEN),
-                        fixedItemFee.setScale(2, RoundingMode.HALF_EVEN)
+                        null,
+                        null,
+                        null
                 ),
                 divergenceReason
+        );
+    }
+
+    private FeeCalculationResult incompleteResult(
+            BigDecimal subtotalItems,
+            int totalQuantityItems,
+            List<FeeCalculationItem> auditedItems
+    ) {
+        return new FeeCalculationResult(
+                RULE_VERSION,
+                OffsetDateTime.now(),
+                FeeAuditStatus.INCOMPLETE,
+                false,
+                TOLERANCE_AMOUNT,
+                subtotalItems.setScale(2, RoundingMode.HALF_EVEN),
+                totalQuantityItems,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                auditedItems,
+                new MercadoLivreFeeCalculationDetails(null, null, null, null),
+                "Dados oficiais Mercado Livre ausentes: sale_fee"
         );
     }
 
@@ -198,8 +210,6 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
             }
 
             BigDecimal itemSubtotal = unitPrice.multiply(BigDecimal.valueOf(quantity)).setScale(4, RoundingMode.HALF_EVEN);
-            boolean isLowValue = unitPrice.compareTo(LOW_VALUE_THRESHOLD_79) < 0;
-
             items.add(new FeeCalculationItem(
                     itemId,
                     itemName != null ? itemName : "Item Mercado Livre",
@@ -207,7 +217,7 @@ public class MercadoLivreFeeCalculator implements MarketplaceFeeCalculator {
                     unitPrice.setScale(2, RoundingMode.HALF_EVEN),
                     quantity,
                     itemSubtotal.setScale(2, RoundingMode.HALF_EVEN),
-                    isLowValue,
+                    false,
                     BigDecimal.ZERO.setScale(2, RoundingMode.HALF_EVEN)
             ));
         }

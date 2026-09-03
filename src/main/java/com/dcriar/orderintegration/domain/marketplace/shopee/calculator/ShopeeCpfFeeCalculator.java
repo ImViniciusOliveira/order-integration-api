@@ -2,6 +2,7 @@ package com.dcriar.orderintegration.domain.marketplace.shopee.calculator;
 
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.MarketplaceFeeCalculator;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationItem;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeAuditStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
 import com.dcriar.orderintegration.domain.marketplace.shopee.calculator.model.ShopeeFeeCalculationDetails;
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
@@ -18,31 +19,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Implementação Strategy das regras matemáticas e tributárias oficiais da Shopee Brasil
- * para contas de vendedores configuradas como Pessoa Física (CPF).
- * <p>
- * Regras aplicadas (Tabela Oficial Brasil):
- * <ul>
- *   <li>Comissão Base: 14% sobre o subtotal dos itens.</li>
- *   <li>Taxa de Transação/Processamento: 6% sobre o subtotal dos itens.</li>
- *   <li>Taxa Fixa por Item Vendido: R$ 4,00 por unidade.</li>
- *   <li>Sobretaxa de Baixo Valor: R$ 5,00 adicionais por unidade em itens cujo preço unitário seja estritamente menor que R$ 8,00.</li>
- *   <li>Dedução de Frete: Desconto do frete suportado pelo vendedor (se cobrado no extrato).</li>
- *   <li>Tolerância de Arredondamento: R$ 0,05 para compensação de microcentavos bancários.</li>
- * </ul>
+ * Executa a auditoria da Shopee usando exclusivamente os componentes financeiros
+ * retornados no bloco oficial {@code order_income}.
  */
 @Slf4j
 @Component
 public class ShopeeCpfFeeCalculator implements MarketplaceFeeCalculator {
 
     public static final String PLATFORM_CODE = "SHOPEE";
-    public static final String RULE_VERSION = "SHOPEE_CPF_BR_2026";
+    public static final String RULE_VERSION = "SHOPEE_OFFICIAL_ORDER_INCOME";
 
-    private static final BigDecimal COMMISSION_RATE_14 = new BigDecimal("0.1400");
-    private static final BigDecimal TRANSACTION_RATE_6 = new BigDecimal("0.0600");
-    private static final BigDecimal FIXED_FEE_PER_ITEM_4 = new BigDecimal("4.0000");
-    private static final BigDecimal LOW_VALUE_THRESHOLD_8 = new BigDecimal("8.0000");
-    private static final BigDecimal LOW_VALUE_SURCHARGE_5 = new BigDecimal("5.0000");
     private static final BigDecimal TOLERANCE_AMOUNT = new BigDecimal("0.05");
 
     @Override
@@ -60,22 +46,32 @@ public class ShopeeCpfFeeCalculator implements MarketplaceFeeCalculator {
 
         BigDecimal subtotalItems = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
         int totalQuantityItems = 0;
-        BigDecimal lowValueSurchargeTotal = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
 
         for (FeeCalculationItem item : auditedItems) {
             subtotalItems = subtotalItems.add(item.subtotal());
             totalQuantityItems += item.quantity();
-            lowValueSurchargeTotal = lowValueSurchargeTotal.add(item.surchargeApplied());
         }
 
-        BigDecimal baseCommission = subtotalItems.multiply(COMMISSION_RATE_14).setScale(4, RoundingMode.HALF_EVEN);
-        BigDecimal transactionFee = subtotalItems.multiply(TRANSACTION_RATE_6).setScale(4, RoundingMode.HALF_EVEN);
-        BigDecimal fixedItemFee = FIXED_FEE_PER_ITEM_4.multiply(BigDecimal.valueOf(totalQuantityItems)).setScale(4, RoundingMode.HALF_EVEN);
+        Map<String, Object> income = resolveOfficialIncome(order.getMetadata());
+        List<String> missingFields = missingOfficialFields(income);
+        if (!missingFields.isEmpty()) {
+            return incompleteResult(
+                    subtotalItems,
+                    totalQuantityItems,
+                    auditedItems,
+                    missingFields
+            );
+        }
 
-        BigDecimal totalMarketplaceFees = baseCommission
-                .add(transactionFee)
-                .add(fixedItemFee)
-                .add(lowValueSurchargeTotal)
+        BigDecimal commissionFee = decimalValue(income, "commission_fee");
+        BigDecimal serviceFee = decimalValue(income, "service_fee");
+        BigDecimal sellerTransactionFee = decimalValue(income, "seller_transaction_fee");
+        BigDecimal otherFees = valueOrZero(decimalValue(income, "escrow_tax"));
+
+        BigDecimal totalMarketplaceFees = commissionFee
+                .add(serviceFee)
+                .add(sellerTransactionFee)
+                .add(otherFees)
                 .setScale(4, RoundingMode.HALF_EVEN);
 
         BigDecimal resolvedSellerShipping = (actualSellerShippingFee != null)
@@ -117,6 +113,7 @@ public class ShopeeCpfFeeCalculator implements MarketplaceFeeCalculator {
         return new FeeCalculationResult(
                 RULE_VERSION,
                 OffsetDateTime.now(),
+                FeeAuditStatus.COMPLETE,
                 hasDivergence,
                 TOLERANCE_AMOUNT.setScale(2, RoundingMode.HALF_EVEN),
                 subtotalItems.setScale(2, RoundingMode.HALF_EVEN),
@@ -128,13 +125,93 @@ public class ShopeeCpfFeeCalculator implements MarketplaceFeeCalculator {
                 calculatedDifference.setScale(2, RoundingMode.HALF_EVEN),
                 auditedItems,
                 new ShopeeFeeCalculationDetails(
-                        baseCommission.setScale(2, RoundingMode.HALF_EVEN),
-                        transactionFee.setScale(2, RoundingMode.HALF_EVEN),
-                        fixedItemFee.setScale(2, RoundingMode.HALF_EVEN),
-                        lowValueSurchargeTotal.setScale(2, RoundingMode.HALF_EVEN)
+                        commissionFee.setScale(2, RoundingMode.HALF_EVEN),
+                        serviceFee.setScale(2, RoundingMode.HALF_EVEN),
+                        sellerTransactionFee.setScale(2, RoundingMode.HALF_EVEN),
+                        otherFees.setScale(2, RoundingMode.HALF_EVEN)
                 ),
                 divergenceReason
         );
+    }
+
+    private FeeCalculationResult incompleteResult(
+            BigDecimal subtotalItems,
+            int totalQuantityItems,
+            List<FeeCalculationItem> auditedItems,
+            List<String> missingFields
+    ) {
+        String reason = "Dados oficiais Shopee ausentes: " + String.join(", ", missingFields);
+        return new FeeCalculationResult(
+                RULE_VERSION,
+                OffsetDateTime.now(),
+                FeeAuditStatus.INCOMPLETE,
+                false,
+                TOLERANCE_AMOUNT.setScale(2, RoundingMode.HALF_EVEN),
+                subtotalItems.setScale(2, RoundingMode.HALF_EVEN),
+                totalQuantityItems,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                auditedItems,
+                new ShopeeFeeCalculationDetails(null, null, null, null),
+                reason
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolveOfficialIncome(Map<String, Object> metadata) {
+        if (metadata == null) {
+            return Collections.emptyMap();
+        }
+        Object details = metadata.get("settlement_financial_details");
+        if (!(details instanceof Map<?, ?> detailsMap)) {
+            return Collections.emptyMap();
+        }
+        Object income = detailsMap.get("order_income");
+        if (!(income instanceof Map<?, ?> incomeMap)) {
+            return Collections.emptyMap();
+        }
+        return (Map<String, Object>) incomeMap;
+    }
+
+    private List<String> missingOfficialFields(Map<String, Object> income) {
+        List<String> missing = new ArrayList<>();
+        addMissing(income, missing, "commission_fee");
+        addMissing(income, missing, "service_fee");
+        addMissing(income, missing, "seller_transaction_fee");
+
+        Object incomeDetails = income.get("income_details");
+        if (!(incomeDetails instanceof Map<?, ?> details)
+                || (!details.containsKey("shipping_fee_borne_by_seller")
+                && !details.containsKey("actual_shipping_fee")
+                && !details.containsKey("final_shipping_fee"))) {
+            missing.add("frete oficial");
+        }
+        return missing;
+    }
+
+    private void addMissing(Map<String, Object> source, List<String> missing, String key) {
+        if (!source.containsKey(key) || decimalValue(source, key) == null) {
+            missing.add(key);
+        }
+    }
+
+    private BigDecimal decimalValue(Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value.toString());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private BigDecimal valueOrZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     /**
@@ -176,11 +253,6 @@ public class ShopeeCpfFeeCalculator implements MarketplaceFeeCalculator {
             }
 
             BigDecimal itemSubtotal = unitPrice.multiply(BigDecimal.valueOf(quantity)).setScale(4, RoundingMode.HALF_EVEN);
-            boolean isLowValue = unitPrice.compareTo(LOW_VALUE_THRESHOLD_8) < 0;
-            BigDecimal surchargeApplied = isLowValue
-                    ? LOW_VALUE_SURCHARGE_5.multiply(BigDecimal.valueOf(quantity)).setScale(4, RoundingMode.HALF_EVEN)
-                    : BigDecimal.ZERO.setScale(4, RoundingMode.HALF_EVEN);
-
             items.add(new FeeCalculationItem(
                     itemId,
                     itemName != null ? itemName : "Item sem descrição",
@@ -188,8 +260,8 @@ public class ShopeeCpfFeeCalculator implements MarketplaceFeeCalculator {
                     unitPrice.setScale(2, RoundingMode.HALF_EVEN),
                     quantity,
                     itemSubtotal.setScale(2, RoundingMode.HALF_EVEN),
-                    isLowValue,
-                    surchargeApplied.setScale(2, RoundingMode.HALF_EVEN)
+                    false,
+                    BigDecimal.ZERO.setScale(2, RoundingMode.HALF_EVEN)
             ));
         }
 

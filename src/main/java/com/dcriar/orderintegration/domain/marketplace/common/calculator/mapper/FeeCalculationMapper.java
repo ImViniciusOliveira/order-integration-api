@@ -34,6 +34,7 @@ public class FeeCalculationMapper {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("versao_regra", result.ruleVersion());
         root.put("data_auditoria", result.auditDate() != null ? result.auditDate().toString() : null);
+        root.put("status_auditoria", result.auditStatus().name());
         root.put("has_divergence", result.hasDivergence());
         root.put("tolerancia_centavos", result.tolerance());
 
@@ -62,17 +63,18 @@ public class FeeCalculationMapper {
     private Map<String, Object> mapPlatformDetails(FeeCalculationDetails details) {
         if (details instanceof ShopeeFeeCalculationDetails shopee) {
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("comissao_base_14", shopee.baseCommission14());
-            result.put("taxa_transacao_6", shopee.transactionFee6());
-            result.put("taxa_fixa_item_4", shopee.fixedItemFee4());
-            result.put("sobretaxa_baixo_valor_5", shopee.lowValueSurcharge5());
+            result.put("commission_fee", shopee.commissionFee());
+            result.put("service_fee", shopee.serviceFee());
+            result.put("seller_transaction_fee", shopee.sellerTransactionFee());
+            result.put("other_fees", shopee.otherFees());
             return result;
         }
         if (details instanceof MercadoLivreFeeCalculationDetails mercadoLivre) {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("sale_fee", mercadoLivre.saleFee());
-            result.put("comissao_contingencial", mercadoLivre.defaultCommission());
-            result.put("tarifa_fixa_unitaria", mercadoLivre.fixedUnitFee());
+            result.put("percentage_fee", mercadoLivre.percentageFee());
+            result.put("fixed_fee", mercadoLivre.fixedFee());
+            result.put("financing_add_on_fee", mercadoLivre.financingAddOnFee());
             return result;
         }
         return Collections.emptyMap();

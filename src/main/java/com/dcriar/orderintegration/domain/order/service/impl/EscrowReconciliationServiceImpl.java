@@ -5,6 +5,7 @@ import com.dcriar.orderintegration.domain.notification.service.OrderReconciliati
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.MarketplaceFeeCalculator;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.mapper.FeeCalculationMapper;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeAuditStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.model.MarketplaceSettlement;
 import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
@@ -125,6 +126,12 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
             return false;
         }
 
+        Map<String, Object> settlementMetadata = new LinkedHashMap<>(
+                order.getMetadata() != null ? order.getMetadata() : Map.of()
+        );
+        settlementMetadata.put("settlement_financial_details", settlement.financialDetails());
+        order.setMetadata(settlementMetadata);
+
         BigDecimal subtotalCalculated = BigDecimal.ZERO;
 
         // Cenário A: Extrato contábil liberado com sucesso -> Executar prova real matemática de taxas
@@ -140,12 +147,14 @@ public class EscrowReconciliationServiceImpl implements EscrowReconciliationServ
                         settlement.shippingFee()
                 );
                 subtotalCalculated = feeResult.subtotalItems();
-                Map<String, Object> updatedMetadata = (order.getMetadata() != null)
-                        ? new LinkedHashMap<>(order.getMetadata())
-                        : new LinkedHashMap<>();
-                updatedMetadata.put("auditoria_financeira", feeCalculationMapper.toMap(feeResult));
-                order.setMetadata(updatedMetadata);
-            }
+                        settlementMetadata.put("auditoria_financeira", feeCalculationMapper.toMap(feeResult));
+                        order.setMetadata(settlementMetadata);
+                        if (feeResult.auditStatus() == FeeAuditStatus.INCOMPLETE) {
+                            orderMasterRepository.save(order);
+                            handleUnavailableSettlement(normalizedPlatform, normalizedOrderSn, SettlementStatus.PENDING);
+                            return false;
+                        }
+                }
         }
 
         order.conciliarEscrow(settlement.netAmount(), settlement.shippingFee());

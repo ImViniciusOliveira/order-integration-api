@@ -1,6 +1,7 @@
 package com.dcriar.orderintegration.domain.marketplace.common.calculator.mapper;
 
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationItem;
+import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeAuditStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.calculator.model.FeeCalculationResult;
 import com.dcriar.orderintegration.domain.marketplace.shopee.calculator.model.ShopeeFeeCalculationDetails;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,7 @@ class FeeCalculationMapperTest {
         FeeCalculationResult result = new FeeCalculationResult(
                 "SHOPEE_CPF_BR_2026",
                 OffsetDateTime.now(),
+                FeeAuditStatus.COMPLETE,
                 false,
                 new BigDecimal("0.05"),
                 new BigDecimal("50.00"),
@@ -86,7 +88,7 @@ class FeeCalculationMapperTest {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> detalhes = (Map<String, Object>) map.get("detalhes_plataforma");
-        assertThat(detalhes.get("comissao_base_14")).isEqualTo(new BigDecimal("7.00"));
+        assertThat(detalhes.get("commission_fee")).isEqualTo(new BigDecimal("7.00"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> itens = (List<Map<String, Object>>) map.get("itens_auditados");

@@ -12,6 +12,7 @@ import java.util.List;
  *
  * @param ruleVersion          versão e identificador da regra aplicada (ex: "SHOPEE_CPF_BR_2026")
  * @param auditDate            data e hora exata em que a auditoria financeira foi calculada
+ * @param auditStatus          indica se existem dados oficiais suficientes para a auditoria
  * @param hasDivergence        sinaliza se houve divergência contábil acima da tolerância permitida
  * @param tolerance            margem de tolerância em centavos para compensar arredondamentos bancários
  * @param subtotalItems        somatório do valor dos itens comprados
@@ -28,6 +29,7 @@ import java.util.List;
 public record FeeCalculationResult(
         String ruleVersion,
         OffsetDateTime auditDate,
+        FeeAuditStatus auditStatus,
         boolean hasDivergence,
         BigDecimal tolerance,
         BigDecimal subtotalItems,

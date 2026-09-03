@@ -7,15 +7,15 @@ import java.math.BigDecimal;
 /**
  * Detalhes das tarifas exclusivas da regra Shopee CPF Brasil.
  *
- * @param baseCommission14 comissão base de 14%
- * @param transactionFee6 taxa de transação de 6%
- * @param fixedItemFee4 tarifa fixa por unidade
- * @param lowValueSurcharge5 sobretaxa por item abaixo do limite de baixo valor
+ * @param commissionFee comissão oficial retornada pela Shopee
+ * @param serviceFee taxa de serviço oficial retornada pela Shopee
+ * @param sellerTransactionFee taxa de transação do vendedor
+ * @param otherFees demais taxas oficiais identificadas
  */
 public record ShopeeFeeCalculationDetails(
-        BigDecimal baseCommission14,
-        BigDecimal transactionFee6,
-        BigDecimal fixedItemFee4,
-        BigDecimal lowValueSurcharge5
+        BigDecimal commissionFee,
+        BigDecimal serviceFee,
+        BigDecimal sellerTransactionFee,
+        BigDecimal otherFees
 ) implements FeeCalculationDetails {
 }
