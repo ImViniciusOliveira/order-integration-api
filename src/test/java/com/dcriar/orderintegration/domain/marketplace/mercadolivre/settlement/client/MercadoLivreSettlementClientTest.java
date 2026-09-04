@@ -4,6 +4,7 @@ import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.service.MercadoLivreCredentialService;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.mapper.MercadoLivreSettlementResponseMapper;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.oauth.MercadoLivreTokenClient;
+import com.dcriar.orderintegration.domain.order.repository.MarketplaceRawEventRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -60,7 +61,8 @@ class MercadoLivreSettlementClientTest {
                 properties,
                 new MercadoLivreSettlementResponseMapper(),
                 RestClient.builder(),
-                mock(MercadoLivreTokenClient.class)
+                mock(MercadoLivreTokenClient.class),
+                mock(MarketplaceRawEventRepository.class)
         );
     }
 }

@@ -49,9 +49,17 @@ public class ShopeeSettlementResponseMapper {
         BigDecimal shippingFee = firstDecimal(
                 incomeDetails,
                 "shipping_fee_borne_by_seller",
-                "actual_shipping_fee",
-                "final_shipping_fee"
+                "final_shipping_fee",
+                "actual_shipping_fee"
         );
+        if (shippingFee == null) {
+            shippingFee = firstDecimal(
+                    financialResponse,
+                    "shipping_fee_borne_by_seller",
+                    "final_shipping_fee",
+                    "actual_shipping_fee"
+            );
+        }
         return new MarketplaceSettlement(
                 SettlementStatus.AVAILABLE,
                 ShopeeSettlementClient.PLATFORM_CODE,

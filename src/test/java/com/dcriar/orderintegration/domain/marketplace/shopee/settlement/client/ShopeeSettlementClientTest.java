@@ -5,6 +5,7 @@ import com.dcriar.orderintegration.domain.marketplace.shopee.credential.service.
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.mapper.ShopeeSettlementResponseMapper;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.signer.ShopeeRequestSigner;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.oauth.ShopeeTokenClient;
+import com.dcriar.orderintegration.domain.order.repository.MarketplaceRawEventRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -62,7 +63,8 @@ class ShopeeSettlementClientTest {
                 new ShopeeRequestSigner(),
                 new ShopeeSettlementResponseMapper(),
                 RestClient.builder(),
-                mock(ShopeeTokenClient.class)
+                mock(ShopeeTokenClient.class),
+                mock(MarketplaceRawEventRepository.class)
         );
     }
 }

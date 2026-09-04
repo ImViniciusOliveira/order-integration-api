@@ -4,6 +4,8 @@ import com.dcriar.orderintegration.config.OrderIntegrationProperties;
 import com.dcriar.orderintegration.domain.marketplace.common.model.MarketplaceSettlement;
 import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
+import com.dcriar.orderintegration.domain.order.entity.MarketplaceRawEvent;
+import com.dcriar.orderintegration.domain.order.repository.MarketplaceRawEventRepository;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.document.MercadoLivreCredentialDocument;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.credential.service.MercadoLivreCredentialService;
 import com.dcriar.orderintegration.domain.marketplace.mercadolivre.settlement.mapper.MercadoLivreSettlementResponseMapper;
@@ -15,6 +17,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -30,6 +33,7 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
     private final MercadoLivreSettlementResponseMapper responseMapper;
     private final MercadoLivreTokenClient tokenClient;
     private final RestClient restClient;
+    private final MarketplaceRawEventRepository rawEventRepository;
 
     /**
      * Cria o client do Mercado Livre.
@@ -45,13 +49,15 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
             OrderIntegrationProperties properties,
             MercadoLivreSettlementResponseMapper responseMapper,
             RestClient.Builder restClientBuilder,
-            MercadoLivreTokenClient tokenClient
+            MercadoLivreTokenClient tokenClient,
+            MarketplaceRawEventRepository rawEventRepository
     ) {
         this.credentialService = credentialService;
         this.properties = properties.mercadoLivre();
         this.responseMapper = responseMapper;
         this.tokenClient = tokenClient;
         this.restClient = restClientBuilder.build();
+        this.rawEventRepository = rawEventRepository;
     }
 
     @Override
@@ -69,11 +75,14 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
         try {
             Map<String, Object> order = get(
                     properties.ordersPath() + "/" + orderId,
-                    credential.getLiveAccessToken()
+                    credential.getLiveAccessToken(),
+                    accountId,
+                    orderId,
+                    "SETTLEMENT_ORDER_RESPONSE"
             );
-            Map<String, Object> shipment = fetchShipment(order, credential.getLiveAccessToken());
-            Map<String, Object> shipmentCosts = fetchShipmentCosts(order, credential.getLiveAccessToken());
-            Map<String, Object> payment = fetchPayment(order, credential.getLiveAccessToken());
+            Map<String, Object> shipment = fetchShipment(order, credential.getLiveAccessToken(), accountId, orderId);
+            Map<String, Object> shipmentCosts = fetchShipmentCosts(order, credential.getLiveAccessToken(), accountId, orderId);
+            Map<String, Object> payment = fetchPayment(order, credential.getLiveAccessToken(), accountId, orderId);
             return responseMapper.map(accountId, orderId, order, shipment, shipmentCosts, payment);
         } catch (RestClientResponseException exception) {
             SettlementStatus status = exception.getStatusCode().is5xxServerError()
@@ -90,17 +99,21 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
 
     private Map<String, Object> fetchShipment(
             Map<String, Object> order,
-            String accessToken
+            String accessToken,
+            String accountId,
+            String orderId
     ) {
         String shipmentId = stringValue(order, "shipping", "id");
         return shipmentId == null
                 ? Map.of()
-                : get(properties.shipmentsPath() + "/" + shipmentId, accessToken);
+                : get(properties.shipmentsPath() + "/" + shipmentId, accessToken, accountId, orderId, "SETTLEMENT_SHIPMENT_RESPONSE");
     }
 
     private Map<String, Object> fetchPayment(
             Map<String, Object> order,
-            String accessToken
+            String accessToken,
+            String accountId,
+            String orderId
     ) {
         Object payments = order.get("payments");
         if (!(payments instanceof java.util.List<?> list) || list.isEmpty()
@@ -110,27 +123,51 @@ public class MercadoLivreSettlementClient implements MarketplaceSettlementClient
         Object paymentId = payment.get("id");
         return paymentId == null
                 ? Map.of()
-                : get(properties.paymentsPath() + "/" + paymentId, accessToken);
+                : get(properties.paymentsPath() + "/" + paymentId, accessToken, accountId, orderId, "SETTLEMENT_PAYMENT_RESPONSE");
     }
 
     private Map<String, Object> fetchShipmentCosts(
             Map<String, Object> order,
-            String accessToken
+            String accessToken,
+            String accountId,
+            String orderId
     ) {
         String shipmentId = stringValue(order, "shipping", "id");
         return shipmentId == null
                 ? Map.of()
-                : get(properties.shipmentsPath() + "/" + shipmentId + "/costs", accessToken);
+                : get(properties.shipmentsPath() + "/" + shipmentId + "/costs", accessToken, accountId, orderId, "SETTLEMENT_SHIPMENT_COSTS_RESPONSE");
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> get(String path, String accessToken) {
-        return restClient.get()
+    private Map<String, Object> get(
+            String path,
+            String accessToken,
+            String accountId,
+            String orderId,
+            String eventType
+    ) {
+        Map<String, Object> response = restClient.get()
                 .uri(UriComponentsBuilder.fromUriString(properties.baseUrl()).path(path).build().toUri())
                 .header("Authorization", "Bearer " + accessToken)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body(Map.class);
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("method", "GET");
+        request.put("endpoint", path);
+        request.put("account_id", accountId);
+        request.put("order_id", orderId);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("request", request);
+        payload.put("response", response != null ? response : Map.of());
+        rawEventRepository.save(MarketplaceRawEvent.criarEvento(
+                PLATFORM_CODE,
+                accountId,
+                orderId,
+                eventType,
+                payload
+        ));
+        return response;
     }
 
     private MarketplaceSettlement unavailable(

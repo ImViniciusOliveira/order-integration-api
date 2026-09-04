@@ -6,6 +6,8 @@ import com.dcriar.orderintegration.domain.marketplace.shopee.credential.service.
 import com.dcriar.orderintegration.domain.marketplace.common.model.MarketplaceSettlement;
 import com.dcriar.orderintegration.domain.marketplace.common.model.SettlementStatus;
 import com.dcriar.orderintegration.domain.marketplace.common.service.MarketplaceSettlementClient;
+import com.dcriar.orderintegration.domain.order.entity.MarketplaceRawEvent;
+import com.dcriar.orderintegration.domain.order.repository.MarketplaceRawEventRepository;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.mapper.ShopeeSettlementResponseMapper;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.signer.ShopeeRequestSigner;
 import com.dcriar.orderintegration.domain.marketplace.shopee.settlement.oauth.ShopeeTokenClient;
@@ -18,6 +20,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -38,6 +41,7 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
     private final ShopeeTokenClient tokenClient;
     private final ShopeeSettlementResponseMapper responseMapper;
     private final RestClient restClient;
+    private final MarketplaceRawEventRepository rawEventRepository;
 
     /**
      * Cria o client Shopee com suas dependências de integração.
@@ -54,7 +58,8 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
             ShopeeRequestSigner requestSigner,
             ShopeeSettlementResponseMapper responseMapper,
             RestClient.Builder restClientBuilder,
-            ShopeeTokenClient tokenClient
+            ShopeeTokenClient tokenClient,
+            MarketplaceRawEventRepository rawEventRepository
     ) {
         this.credentialService = credentialService;
         this.properties = properties.shopee();
@@ -62,6 +67,7 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
         this.responseMapper = responseMapper;
         this.tokenClient = tokenClient;
         this.restClient = restClientBuilder.build();
+        this.rawEventRepository = rawEventRepository;
     }
 
     @Override
@@ -105,6 +111,7 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(Map.class);
+            saveSettlementExchange(accountId, orderId, credential, timestamp, body);
             logResponseDiagnostics(orderId, body);
             return responseMapper.map(accountId, orderId, body);
         } catch (RestClientResponseException exception) {
@@ -120,6 +127,33 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
         }
     }
 
+    private void saveSettlementExchange(
+            String accountId,
+            String orderId,
+            ShopeeCredentialDocument credential,
+            long timestamp,
+            Map<String, Object> response
+    ) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("method", "GET");
+        request.put("endpoint", properties.escrowPath());
+        request.put("order_sn", orderId);
+        request.put("shop_id", credential.getShopId());
+        request.put("partner_id", credential.getPartnerId());
+        request.put("timestamp", timestamp);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("request", request);
+        payload.put("response", response != null ? response : Map.of());
+        rawEventRepository.save(MarketplaceRawEvent.criarEvento(
+                PLATFORM_CODE,
+                accountId,
+                orderId,
+                "SETTLEMENT_ESCROW_RESPONSE",
+                payload
+        ));
+    }
+
     private void logResponseDiagnostics(String orderId, Map<String, Object> body) {
         if (body == null) {
             log.warn("Resposta vazia da Shopee para o pedido '{}'.", orderId);
@@ -128,12 +162,16 @@ public class ShopeeSettlementClient implements MarketplaceSettlementClient {
 
         Object responseObject = body.get("response");
         if (responseObject instanceof Map<?, ?> response) {
+            Object orderIncomeObject = response.get("order_income");
+            Object escrowAmount = orderIncomeObject instanceof Map<?, ?> orderIncome
+                    ? orderIncome.get("escrow_amount")
+                    : null;
             log.info("Resposta Shopee escrow para '{}': error='{}', message='{}', responseKeys={}, escrow_amount='{}'.",
                     orderId,
                     body.get("error"),
                     body.get("message"),
                     response.keySet(),
-                    response.get("escrow_amount"));
+                    escrowAmount);
             return;
         }
 

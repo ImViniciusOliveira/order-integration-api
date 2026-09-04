@@ -43,6 +43,29 @@ class ShopeeSettlementResponseMapperTest {
     }
 
     @Test
+    void deveUsarFreteFinalDoNivelOrderIncomeQuandoIncomeDetailsNaoExistir() {
+        MarketplaceSettlement settlement = mapper.map(
+                "326559200",
+                "ORDER-TOP-LEVEL-SHIPPING",
+                Map.of(
+                        "response", Map.of(
+                                "order_income", Map.of(
+                                        "escrow_amount", "10.53",
+                                        "commission_fee", "3.42",
+                                        "service_fee", "5.05",
+                                        "seller_transaction_fee", "0",
+                                        "actual_shipping_fee", "9.62",
+                                        "final_shipping_fee", "0"
+                                )
+                        )
+                )
+        );
+
+        assertThat(settlement.status()).isEqualTo(SettlementStatus.AVAILABLE);
+        assertThat(settlement.shippingFee()).isEqualByComparingTo("0");
+    }
+
+    @Test
     void deveClassificarEscrowZeradoComoPendente() {
         MarketplaceSettlement settlement = mapper.map(
                 "326559200",

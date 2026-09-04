@@ -183,10 +183,14 @@ public class ShopeeCpfFeeCalculator implements MarketplaceFeeCalculator {
         addMissing(income, missing, "seller_transaction_fee");
 
         Object incomeDetails = income.get("income_details");
-        if (!(incomeDetails instanceof Map<?, ?> details)
-                || (!details.containsKey("shipping_fee_borne_by_seller")
-                && !details.containsKey("actual_shipping_fee")
-                && !details.containsKey("final_shipping_fee"))) {
+        boolean hasShippingInDetails = incomeDetails instanceof Map<?, ?> details
+                && (details.containsKey("shipping_fee_borne_by_seller")
+                || details.containsKey("actual_shipping_fee")
+                || details.containsKey("final_shipping_fee"));
+        boolean hasShippingAtIncomeLevel = income.containsKey("actual_shipping_fee")
+                || income.containsKey("final_shipping_fee")
+                || income.containsKey("shipping_fee_borne_by_seller");
+        if (!hasShippingInDetails && !hasShippingAtIncomeLevel) {
             missing.add("frete oficial");
         }
         return missing;

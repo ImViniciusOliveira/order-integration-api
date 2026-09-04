@@ -170,4 +170,34 @@ class EscrowDelayQueueServiceTest {
                 "dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"
         );
     }
+
+    @Test
+    @DisplayName("Deve limpar a fila quando o pedido já estiver persistido na DLQ")
+    void deveLimparFilaQuandoPedidoJaEstiverNaDlq() {
+        when(valueOperations.get("dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"))
+                .thenReturn("53");
+        when(deadLetterRepository.existsByPlatformAndOrderSn("SHOPEE", "240828ABC123"))
+                .thenReturn(true);
+        when(zSetOperations.add(
+                eq("dcriar:orders:escrow_delay_queue:dlq"),
+                eq("SHOPEE:240828ABC123"),
+                anyDouble()
+        )).thenReturn(Boolean.TRUE);
+
+        delayQueueService.moveToDeadLetterQueue("SHOPEE", "240828ABC123");
+
+        verify(deadLetterRepository, never()).save(any(EscrowDeadLetterEntry.class));
+        verify(zSetOperations).add(
+                eq("dcriar:orders:escrow_delay_queue:dlq"),
+                eq("SHOPEE:240828ABC123"),
+                anyDouble()
+        );
+        verify(zSetOperations).remove(
+                "dcriar:orders:escrow_delay_queue",
+                "SHOPEE:240828ABC123"
+        );
+        verify(redisTemplate).delete(
+                "dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"
+        );
+    }
 }

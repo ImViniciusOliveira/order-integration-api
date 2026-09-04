@@ -85,12 +85,15 @@ public class EscrowDelayQueueServiceImpl implements EscrowDelayQueueService {
     public void moveToDeadLetterQueue(String platform, String orderSn) {
         String member = EscrowDelayQueueService.buildQueueMember(platform, orderSn);
         long attempts = readRetryCount(member);
-        deadLetterRepository.save(EscrowDeadLetterEntry.create(
-                platform,
-                orderSn,
-                "ESCROW_PERMANENT_FAILURE",
-                attempts
-        ));
+        String normalizedPlatform = platform.toUpperCase();
+        if (!deadLetterRepository.existsByPlatformAndOrderSn(normalizedPlatform, orderSn)) {
+            deadLetterRepository.save(EscrowDeadLetterEntry.create(
+                    normalizedPlatform,
+                    orderSn,
+                    "ESCROW_PERMANENT_FAILURE",
+                    attempts
+            ));
+        }
         redisTemplate.opsForZSet().add(getDeadLetterQueueKey(), member, System.currentTimeMillis());
         remove(platform, orderSn);
         clearRetry(platform, orderSn);

@@ -109,6 +109,26 @@ class ShopeeCpfFeeCalculatorTest {
         assertThat(result.theoreticalPayout()).isEqualByComparingTo("66.40");
     }
 
+    @Test
+    @DisplayName("Deve aceitar frete oficial no nivel de order_income")
+    void deveAceitarFreteOficialNoNivelDeOrderIncome() {
+        OrderMaster order = orderWithIncome(Map.of(
+                "commission_fee", "3.42",
+                "service_fee", "5.05",
+                "seller_transaction_fee", "0",
+                "actual_shipping_fee", "9.62"
+        ));
+
+        FeeCalculationResult result = calculator.calculate(
+                order,
+                new BigDecimal("10.53"),
+                new BigDecimal("9.62")
+        );
+
+        assertThat(result.auditStatus()).isEqualTo(FeeAuditStatus.COMPLETE);
+        assertThat(result.totalMarketplaceFees()).isEqualByComparingTo("8.47");
+    }
+
     private OrderMaster orderWithIncome(Map<String, Object> income) {
         return OrderMaster.builder()
                 .platform("SHOPEE")

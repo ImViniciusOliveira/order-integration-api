@@ -38,5 +38,5 @@ build/
 *.env
 !.env*.example
 
-# Local planning documents
-/PLANO_*.md
+# Documentacao local da API
+/md-api/
