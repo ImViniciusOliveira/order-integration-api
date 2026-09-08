@@ -1,7 +1,6 @@
 package com.dcriar.orderintegration.domain.queue.service.impl;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
-import com.dcriar.orderintegration.domain.queue.entity.EscrowDeadLetterEntry;
 import com.dcriar.orderintegration.domain.queue.repository.EscrowDeadLetterRepository;
 import com.dcriar.orderintegration.domain.queue.service.EscrowDelayQueueService;
 import lombok.RequiredArgsConstructor;
@@ -82,17 +81,19 @@ public class EscrowDelayQueueServiceImpl implements EscrowDelayQueueService {
     }
 
     @Override
+    @Transactional
     public void moveToDeadLetterQueue(String platform, String orderSn) {
         String member = EscrowDelayQueueService.buildQueueMember(platform, orderSn);
         long attempts = readRetryCount(member);
         String normalizedPlatform = platform.toUpperCase();
-        if (!deadLetterRepository.existsByPlatformAndOrderSn(normalizedPlatform, orderSn)) {
-            deadLetterRepository.save(EscrowDeadLetterEntry.create(
-                    normalizedPlatform,
-                    orderSn,
-                    "ESCROW_PERMANENT_FAILURE",
-                    attempts
-            ));
+        int insertedRows = deadLetterRepository.insertIfAbsent(
+                normalizedPlatform,
+                orderSn,
+                "ESCROW_PERMANENT_FAILURE",
+                attempts
+        );
+        if (insertedRows == 0) {
+            log.info("Pedido {} já estava registrado na DLQ PostgreSQL.", member);
         }
         redisTemplate.opsForZSet().add(getDeadLetterQueueKey(), member, System.currentTimeMillis());
         remove(platform, orderSn);

@@ -1,7 +1,6 @@
 package com.dcriar.orderintegration.domain.queue.service;
 
 import com.dcriar.orderintegration.config.OrderIntegrationProperties;
-import com.dcriar.orderintegration.domain.queue.entity.EscrowDeadLetterEntry;
 import com.dcriar.orderintegration.domain.queue.repository.EscrowDeadLetterRepository;
 import com.dcriar.orderintegration.domain.queue.service.impl.EscrowDelayQueueServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,7 +8,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -147,6 +145,9 @@ class EscrowDelayQueueServiceTest {
     void devePersistirPedidoNaDlq() {
         when(valueOperations.get("dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"))
                 .thenReturn("5");
+        when(deadLetterRepository.insertIfAbsent(
+                "SHOPEE", "240828ABC123", "ESCROW_PERMANENT_FAILURE", 5L
+        )).thenReturn(1);
         when(zSetOperations.add(
                 eq("dcriar:orders:escrow_delay_queue:dlq"),
                 eq("SHOPEE:240828ABC123"),
@@ -155,12 +156,9 @@ class EscrowDelayQueueServiceTest {
 
         delayQueueService.moveToDeadLetterQueue("SHOPEE", "240828ABC123");
 
-        ArgumentCaptor<EscrowDeadLetterEntry> captor =
-                ArgumentCaptor.forClass(EscrowDeadLetterEntry.class);
-        verify(deadLetterRepository).save(captor.capture());
-        assertThat(captor.getValue().getPlatform()).isEqualTo("SHOPEE");
-        assertThat(captor.getValue().getOrderSn()).isEqualTo("240828ABC123");
-        assertThat(captor.getValue().getAttempts()).isEqualTo(5L);
+        verify(deadLetterRepository).insertIfAbsent(
+                "SHOPEE", "240828ABC123", "ESCROW_PERMANENT_FAILURE", 5L
+        );
         verify(zSetOperations).add(
                 eq("dcriar:orders:escrow_delay_queue:dlq"),
                 eq("SHOPEE:240828ABC123"),
@@ -176,8 +174,9 @@ class EscrowDelayQueueServiceTest {
     void deveLimparFilaQuandoPedidoJaEstiverNaDlq() {
         when(valueOperations.get("dcriar:orders:escrow_delay_queue:retries:SHOPEE:240828ABC123"))
                 .thenReturn("53");
-        when(deadLetterRepository.existsByPlatformAndOrderSn("SHOPEE", "240828ABC123"))
-                .thenReturn(true);
+        when(deadLetterRepository.insertIfAbsent(
+                "SHOPEE", "240828ABC123", "ESCROW_PERMANENT_FAILURE", 53L
+        )).thenReturn(0);
         when(zSetOperations.add(
                 eq("dcriar:orders:escrow_delay_queue:dlq"),
                 eq("SHOPEE:240828ABC123"),
@@ -186,7 +185,9 @@ class EscrowDelayQueueServiceTest {
 
         delayQueueService.moveToDeadLetterQueue("SHOPEE", "240828ABC123");
 
-        verify(deadLetterRepository, never()).save(any(EscrowDeadLetterEntry.class));
+        verify(deadLetterRepository).insertIfAbsent(
+                "SHOPEE", "240828ABC123", "ESCROW_PERMANENT_FAILURE", 53L
+        );
         verify(zSetOperations).add(
                 eq("dcriar:orders:escrow_delay_queue:dlq"),
                 eq("SHOPEE:240828ABC123"),
