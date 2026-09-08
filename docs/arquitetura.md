@@ -113,7 +113,7 @@ src/main/java/com/[empresa]/[modulo]/
 ---
 
 ## 7. Manutenção Viva da Documentação e Configurações
-* **Variáveis de Ambiente:** Nenhuma senha ou credencial real deve ser commitada no repositório. Sempre que uma nova chave for adicionada aos arquivos de configuração, os respectivos templates de exemplo (`.env.dev.example` e `.env.prod.example`) DEVEM ser atualizados imediatamente.
+* **Variáveis de Ambiente:** Nenhuma senha ou credencial real deve ser commitada no repositório. Sempre que uma nova chave for adicionada aos arquivos de configuração, os respectivos templates de exemplo em `env-examples/` DEVEM ser atualizados imediatamente.
 * **Evolução do README:** O `README.md` principal é um documento vivo. Se a arquitetura mudar, novos comandos de build forem criados ou novas ferramentas forem adotadas, o README deve refletir essas mudanças no mesmo commit.
 * **Configurações Locais na IDE:** A aplicação suporta perfis locais (`application-local.yml`) e o carregamento de variáveis via arquivos `.env` locais que são explicitamente ignorados pelo Git (`.gitignore`). Apenas arquivos de exemplo sobem para o repositório.
 
@@ -142,7 +142,7 @@ src/main/java/com/[empresa]/[modulo]/
   * Todas as variáveis devem ser mapeadas puramente como `${VARIAVEL}`.
   * Os valores reais oficiais de desenvolvimento residem exclusivamente no `.env.dev` (ignorado pelo Git).
 * **Templates de Exemplo Genéricos (`.env.*.example`):**
-  * O `.env.dev.example` e `.env.prod.example` servem exclusivamente como guias/templates para outros desenvolvedores ou servidores.
+  * Os arquivos `env-examples/.env.dev.example` e `env-examples/.env.prod.example` servem exclusivamente como guias/templates para outros desenvolvedores ou servidores.
   * **Regra de Privacidade:** É expressamente proibido colocar dados reais de clientes, domínios específicos de produção (`dcriar.com`, tokens ativos) nesses arquivos de exemplo. Utilize sempre domínios de demonstração genéricos (ex: `https://painel.exemplo.com.br`, `https://api.exemplo.com.br`).
   * **Preservação de Seções:** Nunca delete seções não relacionadas (como MongoDB, Redis, n8n/ngrok) ao editar variáveis de ambiente.
 * **Padrão Oficial de Mensagens de Commit (Git):**
