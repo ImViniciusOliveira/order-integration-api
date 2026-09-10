@@ -79,9 +79,11 @@ public record OrderIntegrationProperties(
      * Configurações de integração para disparo de notificações externas.
      *
      * @param n8nReconciliationWebhookUrl URL de webhook do n8n para notificação de conciliação financeira
+     * @param httpTimeoutSeconds          tempo máximo de espera pela resposta HTTP do n8n
      */
     public record NotificationProperties(
-            String n8nReconciliationWebhookUrl
+            String n8nReconciliationWebhookUrl,
+            int httpTimeoutSeconds
     ) {
     }
 

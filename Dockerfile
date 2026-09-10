@@ -22,6 +22,8 @@ RUN ./mvnw clean package -DskipTests
 # ==========================================
 FROM eclipse-temurin:26-jre-alpine
 
+RUN apk add --no-cache wget
+
 WORKDIR /app
 
 # Copia apenas o arquivo .jar gerado no estágio anterior

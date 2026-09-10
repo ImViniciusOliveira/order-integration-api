@@ -8,14 +8,13 @@ import com.dcriar.orderintegration.domain.notification.repository.NotificationOu
 import com.dcriar.orderintegration.domain.order.entity.OrderMaster;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
-import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -45,11 +44,10 @@ public class N8nOrderReconciliationNotificationServiceImpl implements OrderRecon
     ) {
         this.properties = properties;
         this.outboxRepository = outboxRepository;
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(Duration.ofSeconds(5));
+        int timeoutSeconds = properties.notification().httpTimeoutSeconds();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(5));
+        requestFactory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
 
         this.restClient = restClientBuilder
                 .requestFactory(requestFactory)

@@ -47,7 +47,7 @@ class ShopeeSettlementClientTest {
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
                 new OrderIntegrationProperties.SecurityProperties("key"),
                 new OrderIntegrationProperties.CorsProperties(List.of("http://localhost")),
-                new OrderIntegrationProperties.NotificationProperties("http://localhost"),
+                new OrderIntegrationProperties.NotificationProperties("http://localhost", 30),
                 new OrderIntegrationProperties.ShopeeProperties(
                         "https://partner.shopeemobile.com",
                         "/api/v2/payment/get_escrow_detail",

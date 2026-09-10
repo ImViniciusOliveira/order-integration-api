@@ -115,7 +115,7 @@ class N8nOrderReconciliationNotificationServiceTest {
                 new OrderIntegrationProperties.EscrowProperties(120, 30, 60000L, 50, 5),
                 new OrderIntegrationProperties.SecurityProperties("key"),
                 new OrderIntegrationProperties.CorsProperties(List.of("http://localhost")),
-                new OrderIntegrationProperties.NotificationProperties("http://n8n/webhook"),
+                new OrderIntegrationProperties.NotificationProperties("http://n8n/webhook", 30),
                 new OrderIntegrationProperties.ShopeeProperties("https://shopee", "/escrow", "/token"),
                 new OrderIntegrationProperties.MercadoLivreProperties(
                         "https://mercadolivre", "/orders", "/shipments", "/payments", "/oauth"
