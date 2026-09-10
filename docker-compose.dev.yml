@@ -1,8 +1,8 @@
 services:
   postgres-order-db:
-    image: postgres:alpine
+    image: postgres:18.6-alpine
     container_name: order-integration-db
-    restart: unless-stopped
+    restart: no
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -21,7 +21,7 @@ services:
       retries: 12
 
   mongodb-order:
-    image: mongo:latest
+    image: mongo:8.3.9
     container_name: order-integration-mongodb
     restart: no
     environment:
@@ -36,7 +36,7 @@ services:
       - order-integration-network
 
   redis-order:
-    image: redis:alpine
+    image: redis:8.10.1-alpine
     container_name: order-integration-redis
     restart: no
     ports:
@@ -47,7 +47,7 @@ services:
       - order-integration-network
 
   redis-insight:
-    image: redis/redisinsight:latest
+    image: redis/redisinsight:3.8.0
     container_name: order-integration-redis-insight
     restart: no
     ports:
@@ -60,7 +60,7 @@ services:
       - redis-order
 
   prometheus-order:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     container_name: order-integration-prometheus
     restart: no
     ports:
@@ -72,7 +72,7 @@ services:
       - order-integration-network
 
   grafana-order:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.1
     container_name: order-integration-grafana
     restart: no
     ports:
@@ -88,7 +88,7 @@ services:
       - prometheus-order
 
   n8n-order:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:2.36.7
     container_name: order-integration-n8n
     restart: no
     ports:
@@ -97,7 +97,8 @@ services:
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
-      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - N8N_EDITOR_BASE_URL=${N8N_WEBHOOK_URL}
       - GENERIC_TIMEZONE=America/Sao_Paulo
       - TZ=America/Sao_Paulo
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
@@ -110,7 +111,7 @@ services:
       - order-integration-network
 
   ngrok-order:
-    image: ngrok/ngrok:latest
+    image: ngrok/ngrok@sha256:14d80d083e5b53145f416bbbd36238336c9de4016c43fd950eb2eb845670583b
     container_name: order-integration-ngrok
     restart: no
     environment:
@@ -125,7 +126,7 @@ services:
       - n8n-order
 
   sonarqube-order:
-    image: sonarqube:lts-community
+    image: sonarqube:26.9.0.129388-community
     container_name: order-integration-sonarqube
     restart: no
     ports:

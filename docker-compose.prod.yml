@@ -18,8 +18,41 @@ services:
       start_period: 180s
       retries: 12
 
+  mongodb-order:
+    image: mongo:8.3.9
+    container_name: order-integration-prod-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+    volumes:
+      - mongodb_prod_data:/data/db
+    networks:
+      - order-integration-internal
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' | grep -q 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+  redis-order:
+    image: redis:8.10.1-alpine
+    container_name: order-integration-prod-redis
+    restart: unless-stopped
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - order-integration-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   order-api:
-    image: ${DOCKERHUB_USERNAME}/order-integration-api:${API_IMAGE_TAG}
+    build: .
     container_name: order-integration-prod-api
     restart: unless-stopped
     env_file:
@@ -29,17 +62,21 @@ services:
       SERVER_PORT: 8080
       POSTGRES_HOST: postgres-order-db
       POSTGRES_PORT: 5432
-      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST}
-      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT}
-      SPRING_DATA_REDIS_USERNAME: ${SPRING_DATA_REDIS_USERNAME}
-      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD}
-      SPRING_DATA_REDIS_SSL_ENABLED: ${SPRING_DATA_REDIS_SSL_ENABLED}
-      MONGODB_URI: ${MONGODB_URI}
+      SPRING_DATA_REDIS_HOST: redis-order
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_USERNAME: ""
+      SPRING_DATA_REDIS_PASSWORD: ""
+      SPRING_DATA_REDIS_SSL_ENABLED: "false"
+      MONGODB_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb-order:27017/${MONGO_DB}?authSource=admin
       N8N_RECONCILIATION_WEBHOOK_URL: http://n8n-order:5678/webhook/v1/notifications/reconciled
     networks:
       - order-integration-internal
     depends_on:
       postgres-order-db:
+        condition: service_healthy
+      mongodb-order:
+        condition: service_healthy
+      redis-order:
         condition: service_healthy
       n8n-order:
         condition: service_healthy
@@ -70,8 +107,7 @@ services:
       NODE_FUNCTION_ALLOW_BUILTIN: crypto
       ORDER_API_INTERNAL_URL: http://order-api:8080
       ORDER_API_INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      MONGODB_URI: ${MONGODB_URI}
-      UPSTASH_REDIS_URL: ${UPSTASH_REDIS_URL}
+      MONGODB_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb-order:27017/${MONGO_DB}?authSource=admin
     volumes:
       - n8n_prod_data:/home/node/.n8n
     networks:
@@ -123,6 +159,8 @@ services:
 volumes:
   order_prod_db_data:
   n8n_prod_data:
+  mongodb_prod_data:
+  redis_prod_data:
 
 networks:
   order-integration-edge:
